@@ -9,7 +9,7 @@ import os
 from modules.email.routes import email_bp
 
 # 创建应用
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
 CORS(app)  # 启用CORS，允许跨域请求
 
 # 注册蓝图
@@ -48,8 +48,5 @@ def internal_server_error(e):
     }), 500
 
 if __name__ == '__main__':
-    # 确保目录结构存在
-    os.makedirs('static', exist_ok=True)
-    
     # 启动Flask应用
     app.run(host='0.0.0.0', port=3000, debug=True)
