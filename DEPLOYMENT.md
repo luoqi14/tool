@@ -1,6 +1,6 @@
-# 邮件发送工具部署指南 (OpenCloudOS Server 9)
+# Jarvis工具集部署指南 (OpenCloudOS Server 9)
 
-本文档提供将邮件发送工具部署到 https://tool.jarvismedical.asia/email 的详细步骤，适用于OpenCloudOS Server 9系统。
+本文档提供将Jarvis工具集部署到 https://tool.jarvismedical.asia 的详细步骤，适用于OpenCloudOS Server 9系统。当前工具集包含邮件发送模块，可通过 https://tool.jarvismedical.asia/email 访问。
 
 ## 准备工作
 
@@ -58,48 +58,57 @@ sudo chmod +x setup-ssl.sh
 sudo ./setup-ssl.sh
 ```
 
-### 4. 使用Docker部署应用
+### 4. 使用Docker Compose部署应用
 
-#### 构建Docker镜像
+项目中包含了`docker-compose.yml`文件，可以使用Docker Compose进行部署：
 
 ```bash
-docker build -t email-sender .
+# 构建并启动容器
+docker compose up -d
 ```
 
-#### 运行Docker容器
+或者使用项目中的更新脚本：
 
 ```bash
-docker run -d --name email-app -p 3000:3000 --restart always email-sender
+chmod +x update.sh
+./update.sh
 ```
 
 ### 5. 验证部署
 
-访问 https://tool.jarvismedical.asia/email 确认应用是否正常运行。
+访问以下地址确认应用是否正常运行：
+
+- 工具集主页：https://tool.jarvismedical.asia
+- 邮件发送工具：https://tool.jarvismedical.asia/email
 
 ## 更新应用
 
-当需要更新应用时，执行以下步骤：
+当需要更新应用时，可以使用项目中的更新脚本：
 
 ```bash
 # 拉取最新代码
 git pull
 
-# 重新构建Docker镜像
-docker build -t email-sender .
-
-# 停止并删除旧容器
-docker stop email-app
-docker rm email-app
-
-# 启动新容器
-docker run -d --name email-app -p 3000:3000 --restart always email-sender
+# 运行更新脚本
+./update.sh
 ```
+
+更新脚本会自动执行以下操作：
+
+1. 拉取最新代码
+2. 停止并删除旧容器
+3. 重新构建Docker镜像
+4. 启动新容器
 
 ## 故障排除
 
 ### 1. 检查应用日志
 
 ```bash
+# 查看容器日志
+docker compose logs
+
+# 查看特定容器的日志
 docker logs email-app
 ```
 
@@ -119,7 +128,10 @@ sudo certbot certificates
 ### 4. 重启服务
 
 ```bash
-# 重启Docker容器
+# 使用Docker Compose重启所有服务
+docker compose restart
+
+# 或者重启特定容器
 docker restart email-app
 
 # 重启Nginx
@@ -134,11 +146,13 @@ sudo firewall-cmd --reload
 
 ## 安全考虑
 
-1. 考虑将邮箱凭证存储在环境变量中，而不是硬编码在应用中
-2. 定期更新系统和应用依赖
-3. 配置防火墙，只开放必要的端口
-4. 启用HTTPS并定期更新SSL证书（Certbot会自动处理）
-5. 考虑添加用户认证以限制访问
+1. **环境变量与敏感信息**：将邮箱凭证和其他敏感信息存储在环境变量或外部配置文件中，而不是硬编码在代码中
+2. **定期更新**：定期更新系统、Docker镜像和应用依赖，以修复安全漏洞
+3. **网络安全**：
+   - 配置防火墙，只开放必要的端口（80「443、和内部3000端口）
+   - 启用HTTPS并定期更新SSL证书（Certbot会自动处理）
+4. **访问控制**：考虑添加用户认证或IP限制，以限制对工具的访问
+5. **日志和监控**：设置日志监控，以及时检测异常行为
 
 ## OpenCloudOS特有的注意事项
 
