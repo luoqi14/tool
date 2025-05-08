@@ -44,14 +44,14 @@ python app.py
 3. 在浏览器中访问：
 
 ```
-http://localhost:8080
+http://localhost:3000
 ```
 
 ## 部署指南
 
 ### 本地部署
 
-应用默认在8080端口运行。如需更改端口，请修改`app.py`文件中的相应配置。
+应用默认在3000端口运行。如需更改端口，请修改`app.py`文件中的相应配置。
 
 ### 服务器部署
 
@@ -66,7 +66,7 @@ pip install gunicorn
 2. 启动应用：
 
 ```bash
-gunicorn -w 4 -b 0.0.0.0:8080 app:app
+gunicorn -w 4 -b 0.0.0.0:3000 app:app
 ```
 
 #### 使用Docker部署
@@ -84,16 +84,16 @@ RUN pip install gunicorn
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 3000
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "app:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:3000", "app:app"]
 ```
 
 2. 构建并运行Docker镜像：
 
 ```bash
 docker build -t email-sender .
-docker run -p 8080:8080 email-sender
+docker run -p 3000:3000 email-sender
 ```
 
 ## 安全注意事项

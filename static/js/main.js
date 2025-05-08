@@ -63,7 +63,7 @@ async function handleFormSubmit(event) {
         };
         
         // 发送请求
-        const response = await fetch('/email/api/send-email', {
+        const response = await fetch('/api/send-email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
