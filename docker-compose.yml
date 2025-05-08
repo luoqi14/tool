@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  email-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: email-sender
+    container_name: email-app
+    ports:
+      - "3000:3000"
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      # 挂载日志目录，方便查看日志
+      - ./logs:/app/logs
