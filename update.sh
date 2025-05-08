@@ -16,9 +16,9 @@ git pull
 
 # 使用Docker Compose重新构建并启动服务
 echo -e "${YELLOW}正在重新构建并启动服务...${NC}"
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 
 # 检查容器是否成功启动
 if [ "$(docker ps -q -f name=email-app)" ]; then
@@ -29,7 +29,7 @@ if [ "$(docker ps -q -f name=email-app)" ]; then
     echo -e "${GREEN}https://tool.jarvismedical.asia/email${NC}"
 else
     echo -e "${YELLOW}警告：容器可能未成功启动，请检查日志。${NC}"
-    docker-compose logs
+    docker compose logs
 fi
 
 # 显示容器状态
