@@ -69,7 +69,7 @@ docker build -t email-sender .
 #### 运行Docker容器
 
 ```bash
-docker run -d --name email-app -p 6000:6000 --restart always email-sender
+docker run -d --name email-app -p 3000:3000 --restart always email-sender
 ```
 
 ### 5. 验证部署
@@ -92,7 +92,7 @@ docker stop email-app
 docker rm email-app
 
 # 启动新容器
-docker run -d --name email-app -p 6000:6000 --restart always email-sender
+docker run -d --name email-app -p 3000:3000 --restart always email-sender
 ```
 
 ## 故障排除
@@ -128,7 +128,7 @@ sudo systemctl restart nginx
 # 如果遇到防火墙问题，可以使用以下命令开放端口
 sudo firewall-cmd --permanent --add-service=http
 sudo firewall-cmd --permanent --add-service=https
-sudo firewall-cmd --permanent --add-port=6000/tcp
+sudo firewall-cmd --permanent --add-port=3000/tcp
 sudo firewall-cmd --reload
 ```
 
