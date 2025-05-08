@@ -4,6 +4,7 @@
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 import os
+import argparse
 
 # 导入模块
 from modules.email.routes import email_bp
@@ -48,5 +49,12 @@ def internal_server_error(e):
     }), 500
 
 if __name__ == '__main__':
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='启动工具集应用')
+    parser.add_argument('--port', type=int, default=3000, help='指定运行端口，默认为3000')
+    parser.add_argument('--host', type=str, default='0.0.0.0', help='指定运行主机，默认为0.0.0.0')
+    parser.add_argument('--debug', action='store_true', help='是否开启调试模式')
+    args = parser.parse_args()
+    
     # 启动Flask应用
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    app.run(host=args.host, port=args.port, debug=True)

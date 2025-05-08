@@ -1,0 +1,310 @@
+/* 邮件发送工具样式 */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.btn {
+    cursor: pointer;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border: 1px solid #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    background-color: transparent;
+    border: 1px solid #dc3545;
+}
+
+.btn-outline-danger:hover {
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.alert-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.alert-warning {
+    color: #856404;
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+}
+
+.alert-danger {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.d-none {
+    display: none !important;
+}
+
+/* 附件列表样式 */
+.attachment-section {
+    margin-top: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    background-color: #f9f9f9;
+}
+
+.attachment-list {
+    margin-top: 10px;
+}
+
+.attachment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: #fff;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+.attachment-info {
+    flex: 1;
+}
+
+.attachment-email {
+    color: #007bff;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+/* 加载中遮罩层 */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    visibility: hidden;
+}
+
+.loading-spinner {
+    text-align: center;
+    color: white;
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    vertical-align: text-bottom;
+    border: 0.25em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border .75s linear infinite;
+}
+
+@keyframes spinner-border {
+    to { transform: rotate(360deg); }
+}
+
+/* 详细结果区域 */
+.detailed-results {
+    margin-top: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    background-color: #f9f9f9;
+}
+
+.results-list {
+    margin-top: 10px;
+}
+
+.result-item {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.result-success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+}
+
+.result-error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+/* 文件上传区域 */
+.file-upload-area {
+    border: 2px dashed #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: all 0.3s;
+}
+
+.file-upload-area:hover {
+    border-color: #007bff;
+}
+
+.file-upload-label {
+    display: block;
+    cursor: pointer;
+    padding: 10px;
+}
+
+.file-upload-icon {
+    font-size: 2em;
+    margin-bottom: 10px;
+    color: #007bff;
+}
+
+.file-upload-text {
+    color: #666;
+}
+
+.file-type-warning {
+    color: #dc3545;
+    margin-top: 10px;
+}
+
+/* 模板选择区域 */
+.template-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.template-item {
+    flex: 0 0 calc(33.33% - 15px);
+    min-width: 120px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: #f8f9fa;
+}
+
+.template-item:hover {
+    border-color: #007bff;
+    background-color: #f0f7ff;
+    transform: translateY(-2px);
+}
+
+.template-item[data-selected="true"] {
+    border-color: #007bff;
+    background-color: #e7f1ff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.template-icon {
+    font-size: 2em;
+    margin-bottom: 10px;
+    color: #007bff;
+}
+
+.template-name {
+    font-weight: 500;
+    color: #495057;
+}
+
+@media (max-width: 576px) {
+    .template-item {
+        flex: 0 0 calc(50% - 10px);
+    }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .attachment-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .attachment-item button {
+        margin-top: 10px;
+        width: 100%;
+    }
+}

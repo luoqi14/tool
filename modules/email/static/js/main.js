@@ -1,65 +1,211 @@
 // 全局变量
 let attachmentFiles = [];
+let quillEditor;
+let lastSendResults = [];
+
+// 预设邮件模板
+const EMAIL_TEMPLATES = {
+    cleaning: {
+        name: '洁牙引流',
+        subject: '[[文件名]]',
+        content: `老师好， 附件是2025年3月洁牙对账单
+1、金曜日开票信息： 详见对账单第三张表
+2、开票要求： 发票单价、数量与对账单保持一致
+3、重要的！！！结算需要的附件：
+诊所开具电子发票： 提供电子版pdf原件+对账单盖章回执pdf版， 邮件反馈；
+诊所开具纸质发票： 纸质发票邮寄信息以最新对账单为准~
+4、核销问题， 非常重要！ 请及时核销， 不核销影响结算， 后果自负。
+ps 账单请随时保存`
+    }
+    // 可以在这里添加更多模板
+};
 
 // 页面加载完成后设置事件监听器
 document.addEventListener('DOMContentLoaded', () => {
+    // 初始化富文本编辑器
+    initRichTextEditor();
+    
+    // 初始化模板功能
+    initTemplateFeature();
+    
     // 表单提交
     const form = document.getElementById('emailForm');
     form.addEventListener('submit', handleFormSubmit);
     
-    // 添加附件按钮
-    const addAttachmentBtn = document.getElementById('addAttachmentBtn');
-    addAttachmentBtn.addEventListener('click', addAttachment);
+    // 附件输入框变化
+    const attachmentInput = document.getElementById('attachmentInput');
+    attachmentInput.addEventListener('change', handleFileInputChange);
 });
+
+// 初始化富文本编辑器
+function initRichTextEditor() {
+    // 工具栏选项
+    const toolbarOptions = [
+        ['bold', 'italic', 'underline', 'strike'],        // 文本格式
+        ['blockquote', 'code-block'],                     // 引用和代码块
+        [{ 'header': 1 }, { 'header': 2 }],               // 标题
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],     // 列表
+        [{ 'script': 'sub'}, { 'script': 'super' }],       // 上标/下标
+        [{ 'indent': '-1'}, { 'indent': '+1' }],           // 缩进
+        [{ 'direction': 'rtl' }],                          // 文本方向
+        [{ 'size': ['small', false, 'large', 'huge'] }],   // 字体大小
+        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],        // 标题级别
+        [{ 'color': [] }, { 'background': [] }],           // 字体颜色和背景色
+        [{ 'font': [] }],                                  // 字体系列
+        [{ 'align': [] }],                                 // 对齐方式
+        ['clean'],                                         // 清除格式
+        ['link', 'image']                                  // 链接和图片
+    ];
+    
+    // 初始化Quill编辑器
+    quillEditor = new Quill('#editor', {
+        modules: {
+            toolbar: toolbarOptions
+        },
+        placeholder: '请输入邮件内容...',
+        theme: 'snow'
+    });
+    
+    // 监听内容变化，更新隐藏输入框
+    quillEditor.on('text-change', function() {
+        document.getElementById('content').value = quillEditor.root.innerHTML;
+    });
+}
+
+// 处理文件输入框变化
+async function handleFileInputChange(event) {
+    const fileInput = event.target;
+    const fileTypeWarning = document.getElementById('fileTypeWarning');
+    
+    // 清除警告
+    fileTypeWarning.classList.add('d-none');
+    
+    if (fileInput.files.length > 0) {
+        // 检查文件类型
+        let allValid = true;
+        for (const file of fileInput.files) {
+            const fileExt = file.name.split('.').pop().toLowerCase();
+            if (fileExt !== 'xlsx' && fileExt !== 'xls') {
+                allValid = false;
+                break;
+            }
+        }
+        
+        if (!allValid) {
+            fileTypeWarning.classList.remove('d-none');
+            fileInput.value = '';
+            return;
+        }
+        
+        // 显示加载中提示
+        showLoading(true, '正在解析Excel文件...');
+        
+        try {
+            // 处理每个文件
+            for (const file of fileInput.files) {
+                try {
+                    // 读取文件内容并转换为Base64
+                    const base64Data = await readFileAsBase64(file);
+                    
+                    // 发送到后端解析
+                    const response = await fetch('/email/api/parse-excel', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            file_name: file.name,
+                            file_data: base64Data
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // 添加到附件列表
+                        attachmentFiles.push({
+                            file: file,
+                            name: file.name,
+                            data: base64Data,
+                            email: result.email,
+                            size: file.size
+                        });
+                    } else {
+                        // 显示错误
+                        console.error(`解析文件 ${file.name} 失败:`, result.message);
+                        attachmentFiles.push({
+                            file: file,
+                            name: file.name,
+                            data: base64Data,
+                            error: result.message,
+                            size: file.size
+                        });
+                    }
+                } catch (error) {
+                    console.error(`处理文件 ${file.name} 时出错:`, error);
+                    attachmentFiles.push({
+                        file: file,
+                        name: file.name,
+                        error: error.message,
+                        size: file.size
+                    });
+                }
+            }
+            
+            // 更新附件列表显示
+            updateAttachmentList();
+        } catch (error) {
+            console.error('解析文件时出错:', error);
+            showAlert(`解析文件时出错: ${error.message}`, 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+}
 
 // 处理表单提交
 async function handleFormSubmit(event) {
     event.preventDefault();
     
     // 显示加载中提示
-    showLoading(true);
+    showLoading(true, '正在发送邮件，请稍候...');
     
     try {
         // 获取表单数据
-        const recipients = document.getElementById('recipients').value;
         const subject = document.getElementById('subject').value;
         const content = document.getElementById('content').value;
-        const contentType = document.getElementById('contentType').value;
         
         // 验证表单
-        if (!recipients || !subject || !content) {
-            showAlert('请填写所有必填字段', 'warning');
+        if (!subject || !content) {
+            showAlert('请填写主题和内容', 'warning');
             showLoading(false);
             return;
         }
         
-        // 处理附件数据
-        const attachments = [];
-        for (const file of attachmentFiles) {
-            try {
-                // 读取文件内容并转换为Base64
-                const base64Data = await readFileAsBase64(file);
-                
-                attachments.push({
-                    name: file.name,
-                    data: base64Data,
-                    type: file.type
-                });
-            } catch (error) {
-                console.error(`处理附件 ${file.name} 时出错:`, error);
-                showAlert(`处理附件 ${file.name} 时出错: ${error.message}`, 'danger');
-                showLoading(false);
-                return;
-            }
+        // 验证附件
+        if (attachmentFiles.length === 0) {
+            showAlert('请上传至少一个Excel文件', 'warning');
+            showLoading(false);
+            return;
+        }
+        
+        // 检查是否有有效的附件
+        const validAttachments = attachmentFiles.filter(att => att.email && !att.error);
+        if (validAttachments.length === 0) {
+            showAlert('没有可用的附件，请确保文件中包含有效的邮箱地址', 'warning');
+            showLoading(false);
+            return;
         }
         
         // 准备请求数据
         const requestData = {
-            recipients,
             subject,
             content,
-            contentType,
-            attachments
+            attachments: validAttachments.map(att => ({
+                name: att.name,
+                data: att.data,
+                email: att.email
+            }))
         };
         
         // 发送请求
@@ -74,12 +220,18 @@ async function handleFormSubmit(event) {
         // 处理响应
         const result = await response.json();
         
+        // 显示结果
+        showAlert(result.message, result.success ? 'success' : 'danger');
+        
+        // 显示详细结果
+        if (result.results && result.results.length > 0) {
+            showDetailedResults(result.results);
+        }
+        
+        // 如果成功，清空表单
         if (result.success) {
-            showAlert(result.message, 'success');
             document.getElementById('emailForm').reset();
             clearAttachments();
-        } else {
-            showAlert(`邮件发送失败: ${result.message}`, 'danger');
         }
     } catch (error) {
         console.error('发送邮件时出错:', error);
@@ -87,6 +239,138 @@ async function handleFormSubmit(event) {
     } finally {
         showLoading(false);
     }
+}
+
+// 初始化应用模板功能
+function initTemplateFeature() {
+    // 获取所有模板项
+    const templateItems = document.querySelectorAll('.template-item');
+    
+    // 为每个模板项添加点击事件
+    templateItems.forEach(item => {
+        item.addEventListener('click', () => {
+            // 获取模板 ID
+            const templateId = item.getAttribute('data-template');
+            
+            // 移除所有选中状态
+            templateItems.forEach(el => el.setAttribute('data-selected', 'false'));
+            
+            // 设置当前项为选中状态
+            item.setAttribute('data-selected', 'true');
+            
+            // 应用模板
+            applyTemplate(templateId);
+        });
+    });
+}
+
+// 应用指定模板
+function applyTemplate(templateId) {
+    // 如果是空模板，清空内容
+    if (!templateId) {
+        document.getElementById('subject').value = '';
+        if (quillEditor) {
+            quillEditor.root.innerHTML = '';
+            document.getElementById('content').value = '';
+        }
+        return;
+    }
+    
+    const template = EMAIL_TEMPLATES[templateId];
+    if (!template) {
+        showAlert('模板不存在', 'warning');
+        return;
+    }
+    
+    // 设置主题
+    document.getElementById('subject').value = template.subject;
+    
+    // 设置内容
+    if (quillEditor) {
+        quillEditor.root.innerHTML = template.content;
+        // 更新隐藏输入框
+        document.getElementById('content').value = quillEditor.root.innerHTML;
+    }
+    
+    showAlert(`已应用「${template.name}」模板`, 'success');
+}
+
+// 显示详细结果
+function showDetailedResults(results) {
+    // 保存结果以便重发
+    lastSendResults = results;
+    
+    const detailedResults = document.getElementById('detailedResults');
+    const resultsList = document.getElementById('resultsList');
+    const resendFailedBtn = document.getElementById('resendFailedBtn');
+    
+    // 清空当前结果
+    resultsList.innerHTML = '';
+    
+    // 检查是否有失败的邮件
+    const hasFailedEmails = results.some(result => !result.success);
+    
+    // 显示/隐藏重发按钮
+    if (hasFailedEmails) {
+        resendFailedBtn.classList.remove('d-none');
+    } else {
+        resendFailedBtn.classList.add('d-none');
+    }
+    
+    // 添加每个结果项
+    results.forEach((result, index) => {
+        const row = document.createElement('tr');
+        
+        // 设置行的背景色
+        if (!result.success) {
+            row.classList.add('table-danger');
+        } else {
+            row.classList.add('table-success');
+        }
+        
+        // 文件名
+        const fileCell = document.createElement('td');
+        fileCell.textContent = result.filename;
+        row.appendChild(fileCell);
+        
+        // 收件人
+        const recipientCell = document.createElement('td');
+        recipientCell.textContent = result.recipient || '-';
+        row.appendChild(recipientCell);
+        
+        // 状态
+        const statusCell = document.createElement('td');
+        statusCell.innerHTML = result.success ? 
+            '<span class="badge bg-success">成功</span>' : 
+            '<span class="badge bg-danger">失败</span>';
+        row.appendChild(statusCell);
+        
+        // 消息
+        const messageCell = document.createElement('td');
+        messageCell.textContent = result.message;
+        row.appendChild(messageCell);
+        
+        // 操作
+        const actionCell = document.createElement('td');
+        if (!result.success) {
+            const resendBtn = document.createElement('button');
+            resendBtn.className = 'btn btn-sm btn-outline-primary';
+            resendBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> 重发';
+            resendBtn.onclick = () => resendEmail(index);
+            actionCell.appendChild(resendBtn);
+        } else {
+            actionCell.textContent = '-';
+        }
+        row.appendChild(actionCell);
+        
+        resultsList.appendChild(row);
+    });
+    
+    // 显示结果区域
+    detailedResults.classList.remove('d-none');
+    
+    // 添加重发按钮的点击事件
+    resendFailedBtn.onclick = resendAllFailedEmails;
 }
 
 // 读取文件并转换为Base64
@@ -106,46 +390,46 @@ function readFileAsBase64(file) {
     });
 }
 
-// 添加附件
-function addAttachment() {
-    const fileInput = document.getElementById('attachmentInput');
-    
-    if (fileInput.files.length > 0) {
-        // 将FileList转换为数组并添加到附件列表
-        Array.from(fileInput.files).forEach(file => {
-            attachmentFiles.push(file);
-        });
-        
-        // 更新附件列表显示
-        updateAttachmentList();
-        
-        // 清空文件输入，以便可以再次选择相同的文件
-        fileInput.value = '';
-    }
-}
-
 // 更新附件列表显示
 function updateAttachmentList() {
     const attachmentList = document.getElementById('attachmentList');
     attachmentList.innerHTML = '';
     
-    attachmentFiles.forEach((file, index) => {
+    attachmentFiles.forEach((attachment, index) => {
         // 创建附件项
         const attachmentItem = document.createElement('div');
         attachmentItem.className = 'attachment-item';
         
+        // 附件信息区域
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'attachment-info';
+        
         // 文件名称和大小
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = `${file.name} (${formatFileSize(file.size)})`;
+        const nameSpan = document.createElement('div');
+        nameSpan.textContent = `${attachment.name} (${formatFileSize(attachment.size)})`;
+        infoDiv.appendChild(nameSpan);
+        
+        // 邮箱或错误信息
+        if (attachment.email) {
+            const emailSpan = document.createElement('div');
+            emailSpan.className = 'attachment-email';
+            emailSpan.textContent = `收件人: ${attachment.email}`;
+            infoDiv.appendChild(emailSpan);
+        } else if (attachment.error) {
+            const errorSpan = document.createElement('div');
+            errorSpan.className = 'text-danger';
+            errorSpan.textContent = `错误: ${attachment.error}`;
+            infoDiv.appendChild(errorSpan);
+        }
         
         // 删除按钮
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-sm btn-outline-danger';
+        removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
         removeBtn.textContent = '删除';
         removeBtn.onclick = () => removeAttachment(index);
         
         // 添加到附件项
-        attachmentItem.appendChild(nameSpan);
+        attachmentItem.appendChild(infoDiv);
         attachmentItem.appendChild(removeBtn);
         attachmentList.appendChild(attachmentItem);
     });
@@ -161,6 +445,160 @@ function removeAttachment(index) {
 function clearAttachments() {
     attachmentFiles = [];
     updateAttachmentList();
+    
+    // 清空详细结果
+    const detailedResults = document.getElementById('detailedResults');
+    detailedResults.classList.add('d-none');
+    
+    // 重置发送结果
+    lastSendResults = [];
+}
+
+// 重发单个失败邮件
+async function resendEmail(index) {
+    // 获取失败的邮件信息
+    const failedResult = lastSendResults[index];
+    if (!failedResult || failedResult.success) return;
+    
+    // 查找对应的附件
+    const attachment = attachmentFiles.find(att => att.name === failedResult.filename);
+    if (!attachment) {
+        showAlert(`找不到附件: ${failedResult.filename}`, 'warning');
+        return;
+    }
+    
+    // 显示加载中提示
+    showLoading(true, '正在重新发送邮件...');
+    
+    try {
+        // 获取表单数据
+        const subject = document.getElementById('subject').value;
+        const content = document.getElementById('content').value;
+        
+        // 准备请求数据
+        const requestData = {
+            subject,
+            content,
+            attachments: [{
+                name: attachment.name,
+                data: attachment.data,
+                email: attachment.email
+            }]
+        };
+        
+        // 发送请求
+        const response = await fetch('/email/api/send-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        // 处理响应
+        const result = await response.json();
+        
+        // 更新结果
+        if (result.results && result.results.length > 0) {
+            // 替换原来的结果
+            lastSendResults[index] = result.results[0];
+            // 重新显示结果
+            showDetailedResults(lastSendResults);
+        }
+        
+        // 显示结果消息
+        showAlert(result.message, result.success ? 'success' : 'danger');
+    } catch (error) {
+        console.error('重发邮件时出错:', error);
+        showAlert(`重发邮件时出错: ${error.message}`, 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 重发所有失败邮件
+async function resendAllFailedEmails() {
+    // 过滤出失败的邮件索引
+    const failedIndices = lastSendResults
+        .map((result, index) => result.success ? -1 : index)
+        .filter(index => index !== -1);
+    
+    if (failedIndices.length === 0) {
+        showAlert('没有需要重发的邮件', 'warning');
+        return;
+    }
+    
+    // 显示加载中提示
+    showLoading(true, `正在重新发送 ${failedIndices.length} 封失败邮件...`);
+    
+    try {
+        // 获取表单数据
+        const subject = document.getElementById('subject').value;
+        const content = document.getElementById('content').value;
+        
+        // 准备要重发的附件
+        const failedAttachments = [];
+        
+        for (const index of failedIndices) {
+            const failedResult = lastSendResults[index];
+            const attachment = attachmentFiles.find(att => att.name === failedResult.filename);
+            
+            if (attachment && attachment.email) {
+                failedAttachments.push({
+                    name: attachment.name,
+                    data: attachment.data,
+                    email: attachment.email
+                });
+            }
+        }
+        
+        if (failedAttachments.length === 0) {
+            showAlert('找不到可重发的附件', 'warning');
+            showLoading(false);
+            return;
+        }
+        
+        // 准备请求数据
+        const requestData = {
+            subject,
+            content,
+            attachments: failedAttachments
+        };
+        
+        // 发送请求
+        const response = await fetch('/email/api/send-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        // 处理响应
+        const result = await response.json();
+        
+        // 更新结果
+        if (result.results && result.results.length > 0) {
+            // 更新每个重发的邮件结果
+            result.results.forEach(newResult => {
+                const index = lastSendResults.findIndex(r => r.filename === newResult.filename);
+                if (index !== -1) {
+                    lastSendResults[index] = newResult;
+                }
+            });
+            
+            // 重新显示结果
+            showDetailedResults(lastSendResults);
+        }
+        
+        // 显示结果消息
+        showAlert(result.message, result.success ? 'success' : 'danger');
+    } catch (error) {
+        console.error('重发邮件时出错:', error);
+        showAlert(`重发邮件时出错: ${error.message}`, 'danger');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // 格式化文件大小
@@ -171,9 +609,16 @@ function formatFileSize(bytes) {
 }
 
 // 显示/隐藏加载中提示
-function showLoading(show) {
+function showLoading(show, message = '正在发送邮件，请稍候...') {
     const loadingOverlay = document.getElementById('loadingOverlay');
-    loadingOverlay.style.visibility = show ? 'visible' : 'hidden';
+    const loadingMessage = document.getElementById('loadingMessage');
+    
+    if (show) {
+        loadingMessage.textContent = message;
+        loadingOverlay.style.visibility = 'visible';
+    } else {
+        loadingOverlay.style.visibility = 'hidden';
+    }
 }
 
 // 显示提示信息
