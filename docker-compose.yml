@@ -8,7 +8,7 @@ services:
     image: email-sender
     container_name: email-app
     ports:
-      - "3000:3000"
+      - "3001:3001"
     restart: always
     environment:
       - TZ=Asia/Shanghai

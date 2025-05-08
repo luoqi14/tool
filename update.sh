@@ -24,7 +24,7 @@ docker compose up -d
 if [ "$(docker ps -q -f name=email-app)" ]; then
     echo -e "${GREEN}更新成功！应用已重新部署。${NC}"
     echo -e "${GREEN}可通过以下地址访问：${NC}"
-    echo -e "${GREEN}http://localhost:3000/email${NC}"
+    echo -e "${GREEN}http://localhost:3001/email${NC}"
     echo -e "${GREEN}或者${NC}"
     echo -e "${GREEN}https://tool.jarvismedical.asia/email${NC}"
 else

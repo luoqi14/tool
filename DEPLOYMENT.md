@@ -140,7 +140,7 @@ sudo systemctl restart nginx
 # 如果遇到防火墙问题，可以使用以下命令开放端口
 sudo firewall-cmd --permanent --add-service=http
 sudo firewall-cmd --permanent --add-service=https
-sudo firewall-cmd --permanent --add-port=3000/tcp
+sudo firewall-cmd --permanent --add-port=3001/tcp
 sudo firewall-cmd --reload
 ```
 
@@ -149,7 +149,7 @@ sudo firewall-cmd --reload
 1. **环境变量与敏感信息**：将邮箱凭证和其他敏感信息存储在环境变量或外部配置文件中，而不是硬编码在代码中
 2. **定期更新**：定期更新系统、Docker镜像和应用依赖，以修复安全漏洞
 3. **网络安全**：
-   - 配置防火墙，只开放必要的端口（80「443、和内部3000端口）
+   - 配置防火墙，只开放必要的端口（80「443、和内部3001端口）
    - 启用HTTPS并定期更新SSL证书（Certbot会自动处理）
 4. **访问控制**：考虑添加用户认证或IP限制，以限制对工具的访问
 5. **日志和监控**：设置日志监控，以及时检测异常行为

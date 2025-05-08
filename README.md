@@ -53,10 +53,10 @@ python app.py
 
 ```
 # 工具列表
-http://localhost:3000
+http://localhost:3001
 
 # 邮件发送工具
-http://localhost:3000/email
+http://localhost:3001/email
 ```
 
 ## 添加新工具模块

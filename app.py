@@ -51,7 +51,7 @@ def internal_server_error(e):
 if __name__ == '__main__':
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='启动工具集应用')
-    parser.add_argument('--port', type=int, default=3000, help='指定运行端口，默认为3000')
+    parser.add_argument('--port', type=int, default=3001, help='指定运行端口，默认为3001')
     parser.add_argument('--host', type=str, default='0.0.0.0', help='指定运行主机，默认为0.0.0.0')
     parser.add_argument('--debug', action='store_true', help='是否开启调试模式')
     args = parser.parse_args()

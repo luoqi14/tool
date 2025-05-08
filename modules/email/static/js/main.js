@@ -287,7 +287,7 @@ function applyTemplate(templateId) {
     
     // 设置内容
     if (quillEditor) {
-        quillEditor.root.innerHTML = template.content;
+        quillEditor.root.innerHTML = template.content.replaceAll('\n', '<p>');
         // 更新隐藏输入框
         document.getElementById('content').value = quillEditor.root.innerHTML;
     }
