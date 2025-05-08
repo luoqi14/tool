@@ -12,11 +12,11 @@ from email.header import Header
 import smtplib
 import tempfile
 
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+app = Flask(__name__, static_folder='static', static_url_path='/email/static')
 CORS(app)  # 启用CORS，允许跨域请求
 
-# 注释掉这行，让应用在根路径运行
-# app.config['APPLICATION_ROOT'] = '/email'
+# 设置应用在/email子路径下运行
+app.config['APPLICATION_ROOT'] = '/email'
 
 # 企业微信邮箱配置
 EMAIL_CONFIG = {
@@ -26,18 +26,18 @@ EMAIL_CONFIG = {
     "smtp_port": 465
 }
 
-@app.route('/')
-@app.route('/index')
+@app.route('/email/')
+@app.route('/email')
 def index():
     """提供前端页面"""
     return send_from_directory('.', 'index.html')
 
-@app.route('/static/<path:path>')
+@app.route('/email/static/<path:path>')
 def serve_static(path):
     """提供静态文件"""
     return send_from_directory('static', path)
 
-@app.route('/api/send-email', methods=['POST'])
+@app.route('/email/api/send-email', methods=['POST'])
 def send_email():
     """处理邮件发送请求"""
     try:
