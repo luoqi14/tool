@@ -45,6 +45,11 @@
                                 <input type="password" class="form-control" id="senderPassword" required>
                             </div>
                         </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="ccSender" checked>
+                            <label class="form-check-label" for="ccSender">同时将邮件副本发送给自己（密送）</label>
+                            <div class="form-text">勾选此选项后，您将收到一份已发送邮件的副本，便于查看和存档</div>
+                        </div>
                         <div class="mb-3">
                             <label for="subject" class="form-label">邮件主题</label>
                             <input type="text" class="form-control" id="subject" required>
@@ -72,7 +77,7 @@
                                         点击或拖拽上传Excel文件
                                     </div>
                                     <div class="form-text mt-2">
-                                        系统将自动从文件中提取“接收账单邮箱”下方单元格的邮箱地址作为收件人
+                                        系统将自动从文件中提取“接收账单邮箱”相邻单元格的邮箱地址作为收件人
                                     </div>
                                 </label>
                                 <input type="file" class="d-none" id="attachmentInput" accept=".xlsx, .xls" multiple>

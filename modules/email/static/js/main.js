@@ -257,12 +257,16 @@ async function handleFormSubmit(event) {
             return;
         }
         
+        // 获取是否将邮件副本发送给自己的选项
+        const ccSender = document.getElementById('ccSender').checked;
+        
         // 准备请求数据
         const requestData = {
             subject,
             content,
             senderEmail,
             senderPassword,
+            ccSender, // 添加是否将邮件副本发送给自己的选项
             attachments: validAttachments.map(att => ({
                 name: att.name,
                 data: att.data,
@@ -511,12 +515,16 @@ async function resendEmail(index) {
             return;
         }
         
+        // 获取是否将邮件副本发送给自己的选项
+        const ccSender = document.getElementById('ccSender').checked;
+        
         // 准备请求数据
         const requestData = {
             subject,
             content,
             senderEmail,
             senderPassword,
+            ccSender, // 添加是否将邮件副本发送给自己的选项
             attachments: [{
                 name: attachment.name,
                 data: attachment.data,
@@ -607,12 +615,16 @@ async function resendAllFailedEmails() {
             return;
         }
         
+        // 获取是否将邮件副本发送给自己的选项
+        const ccSender = document.getElementById('ccSender').checked;
+        
         // 准备请求数据
         const requestData = {
             subject,
             content,
             senderEmail,
             senderPassword,
+            ccSender, // 添加是否将邮件副本发送给自己的选项
             attachments: failedAttachments
         };
         

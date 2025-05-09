@@ -164,6 +164,7 @@ def send_email():
         content = data['content']
         sender_email = data['senderEmail']
         sender_password = data['senderPassword']
+        cc_sender = data.get('ccSender', True)  # 默认为 True，即发送副本给自己
         attachments = data.get('attachments', [])
         
         # 批量发送结果
@@ -212,6 +213,9 @@ def send_email():
                 msg['From'] = sender_email
                 msg['To'] = recipient_email
                 msg['Subject'] = Header(email_subject, 'utf-8')
+                # 如果用户选择将邮件副本发送给自己，添加发送方为密送收件人
+                if cc_sender:
+                    msg['Bcc'] = sender_email
                 
                 # 添加邮件正文
                 msg.attach(MIMEText(email_content, 'html', 'utf-8'))
@@ -234,7 +238,14 @@ def send_email():
                     
                     with smtplib.SMTP_SSL(smtp_server, 465) as server:
                         server.login(sender_email, sender_password)
-                        server.sendmail(sender_email, [recipient_email], msg.as_string())
+                        # 准备收件人列表
+                        recipients = [recipient_email]
+                        
+                        # 如果用户选择将邮件副本发送给自己，将发送方也添加到收件人列表中
+                        if cc_sender:
+                            recipients.append(sender_email)
+                            
+                        server.sendmail(sender_email, recipients, msg.as_string())
                     
                     results.append({
                         'filename': filename,
