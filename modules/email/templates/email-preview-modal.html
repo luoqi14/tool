@@ -1,0 +1,29 @@
+<!-- 邮件预览模态框 -->
+<div class="modal fade" id="emailPreviewModal" tabindex="-1" aria-labelledby="emailPreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="emailPreviewModalLabel">邮件预览</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="email-preview-container">
+          <div class="email-preview-header">
+            <div class="mb-2"><strong>收件人：</strong><span id="previewRecipient"></span></div>
+            <div class="mb-2"><strong>主题：</strong><span id="previewSubject"></span></div>
+            <hr>
+          </div>
+          <div class="email-preview-content" id="previewContent">
+            <!-- 邮件内容将在这里显示 -->
+          </div>
+          <div class="email-preview-attachments mt-3">
+            <div><strong>附件：</strong><span id="previewAttachmentName"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>

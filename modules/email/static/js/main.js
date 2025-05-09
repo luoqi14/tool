@@ -8,15 +8,16 @@ const EMAIL_TEMPLATES = {
     cleaning: {
         name: '洁牙引流',
         subject: '[[文件名]]',
-        content: `老师好， 附件是2025年3月洁牙对账单
+        content: `老师好， 附件是[[年月]]洁牙对账单
 1、金曜日开票信息： 详见对账单第三张表
 2、开票要求： 发票单价、数量与对账单保持一致
 3、重要的！！！结算需要的附件：
 诊所开具电子发票： 提供电子版pdf原件+对账单盖章回执pdf版， 邮件反馈；
 诊所开具纸质发票： 纸质发票邮寄信息以最新对账单为准~
 4、核销问题， 非常重要！ 请及时核销， 不核销影响结算， 后果自负。
-ps 账单请随时保存`
-    }
+ps 账单请随时保存`,
+        sender: 'finance01@jarvismedical.com'
+    },
     // 可以在这里添加更多模板
 };
 
@@ -36,6 +37,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const attachmentInput = document.getElementById('attachmentInput');
     attachmentInput.addEventListener('change', handleFileInputChange);
 });
+
+// 初始化模板功能
+function initTemplateFeature() {
+    // 获取所有模板项
+    const templateItems = document.querySelectorAll('.template-item');
+    
+    // 为每个模板项添加点击事件
+    templateItems.forEach(item => {
+        item.addEventListener('click', function() {
+            // 移除所有选中状态
+            templateItems.forEach(t => {
+                t.setAttribute('data-selected', 'false');
+                t.classList.remove('selected');
+            });
+            
+            // 设置当前项为选中状态
+            this.setAttribute('data-selected', 'true');
+            this.classList.add('selected');
+            
+            // 获取模板名称
+            const templateName = this.getAttribute('data-template');
+            
+            // 如果选中空白模板，清空内容
+            if (!templateName) {
+                document.getElementById('subject').value = '';
+                quillEditor.root.innerHTML = '';
+                document.getElementById('content').value = '';
+                document.getElementById('senderEmail').value = '';
+                return;
+            }
+            
+            // 获取模板内容
+            const template = EMAIL_TEMPLATES[templateName];
+            if (template) {
+                // 填充主题和内容
+                document.getElementById('subject').value = template.subject;
+                quillEditor.root.innerHTML = template.content.replaceAll('\n', '<p>');
+                document.getElementById('content').value = template.content;
+                
+                // 如果模板有发送者邮箱，也填充
+                if (template.sender) {
+                    document.getElementById('senderEmail').value = template.sender;
+                }
+                
+                // 显示成功提示
+                showAlert(`已应用「${template.name}」模板`, 'success');
+            }
+        });
+    });
+}
 
 // 初始化富文本编辑器
 function initRichTextEditor() {
@@ -128,6 +179,7 @@ async function handleFileInputChange(event) {
                             name: file.name,
                             data: base64Data,
                             email: result.email,
+                            period: result.period || '', // 添加对账期间
                             size: file.size
                         });
                     } else {
@@ -162,7 +214,6 @@ async function handleFileInputChange(event) {
         }
     }
 }
-
 // 处理表单提交
 async function handleFormSubmit(event) {
     event.preventDefault();
@@ -174,6 +225,15 @@ async function handleFormSubmit(event) {
         // 获取表单数据
         const subject = document.getElementById('subject').value;
         const content = document.getElementById('content').value;
+        const senderEmail = document.getElementById('senderEmail').value;
+        const senderPassword = document.getElementById('senderPassword').value;
+        
+        // 验证发送邮箱和密码
+        if (!senderEmail || !senderPassword) {
+            showAlert('请填写发送邮箱和密码', 'warning');
+            showLoading(false);
+            return;
+        }
         
         // 验证表单
         if (!subject || !content) {
@@ -201,10 +261,13 @@ async function handleFormSubmit(event) {
         const requestData = {
             subject,
             content,
+            senderEmail,
+            senderPassword,
             attachments: validAttachments.map(att => ({
                 name: att.name,
                 data: att.data,
-                email: att.email
+                email: att.email,
+                period: att.period || ''
             }))
         };
         
@@ -220,18 +283,15 @@ async function handleFormSubmit(event) {
         // 处理响应
         const result = await response.json();
         
+        // 保存结果用于可能的重发
+        lastSendResults = result.results || [];
+        
         // 显示结果
-        showAlert(result.message, result.success ? 'success' : 'danger');
-        
-        // 显示详细结果
-        if (result.results && result.results.length > 0) {
-            showDetailedResults(result.results);
-        }
-        
-        // 如果成功，清空表单
         if (result.success) {
-            document.getElementById('emailForm').reset();
-            clearAttachments();
+            showAlert(result.message, 'success');
+            showDetailedResults(result.results);
+        } else {
+            showAlert(result.message, 'danger');
         }
     } catch (error) {
         console.error('发送邮件时出错:', error);
@@ -239,60 +299,6 @@ async function handleFormSubmit(event) {
     } finally {
         showLoading(false);
     }
-}
-
-// 初始化应用模板功能
-function initTemplateFeature() {
-    // 获取所有模板项
-    const templateItems = document.querySelectorAll('.template-item');
-    
-    // 为每个模板项添加点击事件
-    templateItems.forEach(item => {
-        item.addEventListener('click', () => {
-            // 获取模板 ID
-            const templateId = item.getAttribute('data-template');
-            
-            // 移除所有选中状态
-            templateItems.forEach(el => el.setAttribute('data-selected', 'false'));
-            
-            // 设置当前项为选中状态
-            item.setAttribute('data-selected', 'true');
-            
-            // 应用模板
-            applyTemplate(templateId);
-        });
-    });
-}
-
-// 应用指定模板
-function applyTemplate(templateId) {
-    // 如果是空模板，清空内容
-    if (!templateId) {
-        document.getElementById('subject').value = '';
-        if (quillEditor) {
-            quillEditor.root.innerHTML = '';
-            document.getElementById('content').value = '';
-        }
-        return;
-    }
-    
-    const template = EMAIL_TEMPLATES[templateId];
-    if (!template) {
-        showAlert('模板不存在', 'warning');
-        return;
-    }
-    
-    // 设置主题
-    document.getElementById('subject').value = template.subject;
-    
-    // 设置内容
-    if (quillEditor) {
-        quillEditor.root.innerHTML = template.content.replaceAll('\n', '<p>');
-        // 更新隐藏输入框
-        document.getElementById('content').value = quillEditor.root.innerHTML;
-    }
-    
-    showAlert(`已应用「${template.name}」模板`, 'success');
 }
 
 // 显示详细结果
@@ -422,15 +428,34 @@ function updateAttachmentList() {
             infoDiv.appendChild(errorSpan);
         }
         
+        // 按钮容器
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'attachment-buttons';
+        
+        // 预览按钮 - 只有当有邮箱地址时才显示
+        if (attachment.email) {
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'btn btn-sm btn-outline-primary me-2';
+            previewBtn.innerHTML = '<i class="bi bi-eye"></i> 预览';
+            previewBtn.type = 'button'; // 明确设置为按钮类型，防止触发表单提交
+            previewBtn.onclick = (e) => {
+                e.preventDefault(); // 防止事件冒泡和默认行为
+                e.stopPropagation(); // 阻止事件冒泡
+                previewEmail(index);
+            };
+            btnContainer.appendChild(previewBtn);
+        }
+        
         // 删除按钮
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
-        removeBtn.textContent = '删除';
+        removeBtn.className = 'btn btn-sm btn-outline-danger';
+        removeBtn.innerHTML = '<i class="bi bi-trash"></i> 删除';
         removeBtn.onclick = () => removeAttachment(index);
+        btnContainer.appendChild(removeBtn);
         
         // 添加到附件项
         attachmentItem.appendChild(infoDiv);
-        attachmentItem.appendChild(removeBtn);
+        attachmentItem.appendChild(btnContainer);
         attachmentList.appendChild(attachmentItem);
     });
 }
@@ -475,14 +500,28 @@ async function resendEmail(index) {
         const subject = document.getElementById('subject').value;
         const content = document.getElementById('content').value;
         
+        // 获取发送邮箱和密码
+        const senderEmail = document.getElementById('senderEmail').value;
+        const senderPassword = document.getElementById('senderPassword').value;
+        
+        // 验证发送邮箱和密码
+        if (!senderEmail || !senderPassword) {
+            showAlert('请填写发送邮箱和密码', 'warning');
+            showLoading(false);
+            return;
+        }
+        
         // 准备请求数据
         const requestData = {
             subject,
             content,
+            senderEmail,
+            senderPassword,
             attachments: [{
                 name: attachment.name,
                 data: attachment.data,
-                email: attachment.email
+                email: attachment.email,
+                period: attachment.period || ''
             }]
         };
         
@@ -535,6 +574,15 @@ async function resendAllFailedEmails() {
         // 获取表单数据
         const subject = document.getElementById('subject').value;
         const content = document.getElementById('content').value;
+        const senderEmail = document.getElementById('senderEmail').value;
+        const senderPassword = document.getElementById('senderPassword').value;
+        
+        // 验证发送邮箱和密码
+        if (!senderEmail || !senderPassword) {
+            showAlert('请填写发送邮箱和密码', 'warning');
+            showLoading(false);
+            return;
+        }
         
         // 准备要重发的附件
         const failedAttachments = [];
@@ -547,7 +595,8 @@ async function resendAllFailedEmails() {
                 failedAttachments.push({
                     name: attachment.name,
                     data: attachment.data,
-                    email: attachment.email
+                    email: attachment.email,
+                    period: attachment.period || ''
                 });
             }
         }
@@ -562,6 +611,8 @@ async function resendAllFailedEmails() {
         const requestData = {
             subject,
             content,
+            senderEmail,
+            senderPassword,
             attachments: failedAttachments
         };
         
@@ -606,6 +657,40 @@ function formatFileSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     else return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// 预览邮件内容
+function previewEmail(index) {
+    const attachment = attachmentFiles[index];
+    if (!attachment || !attachment.email) return;
+    
+    // 获取当前邮件主题和内容
+    const subject = document.getElementById('subject').value;
+    const content = document.getElementById('content').value;
+    
+    // 提取文件名（不包含扩展名）用于占位符替换
+    const filename = attachment.name;
+    const filename_without_ext = filename.split('.').slice(0, -1).join('.');
+    
+    // 替换占位符
+    let previewSubject = subject.replace(/\[\[文件名\]\]/g, filename_without_ext);
+    let previewContent = content.replace(/\[\[文件名\]\]/g, filename_without_ext);
+    
+    // 如果有对账期间，也替换[[年月]]占位符
+    if (attachment.period) {
+        previewSubject = previewSubject.replace(/\[\[年月\]\]/g, attachment.period);
+        previewContent = previewContent.replace(/\[\[年月\]\]/g, attachment.period);
+    }
+    
+    // 更新预览模态框内容
+    document.getElementById('previewRecipient').textContent = attachment.email;
+    document.getElementById('previewSubject').textContent = previewSubject;
+    document.getElementById('previewContent').innerHTML = previewContent;
+    document.getElementById('previewAttachmentName').textContent = filename;
+    
+    // 显示预览模态框
+    const previewModal = new bootstrap.Modal(document.getElementById('emailPreviewModal'));
+    previewModal.show();
 }
 
 // 显示/隐藏加载中提示

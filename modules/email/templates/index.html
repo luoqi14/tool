@@ -7,6 +7,7 @@
     <link href="/email/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="/email/static/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="/email/static/css/style.css" rel="stylesheet">
+    <link href="/email/static/css/email-preview.css" rel="stylesheet">
 
 </head>
 <body>
@@ -34,10 +35,19 @@
                                 <!-- 可以在这里添加更多模板项 -->
                             </div>
                         </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="senderEmail" class="form-label">发送邮箱</label>
+                                <input type="email" class="form-control" id="senderEmail" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="senderPassword" class="form-label">邮箱密码</label>
+                                <input type="password" class="form-control" id="senderPassword" required>
+                            </div>
+                        </div>
                         <div class="mb-3">
                             <label for="subject" class="form-label">邮件主题</label>
                             <input type="text" class="form-control" id="subject" required>
-                            <div class="form-text">支持使用 <code>[[文件名]]</code> 占位符，发送时会自动替换为实际的文件名</div>
                         </div>
                         <div class="mb-3">
                             <label for="content" class="form-label">邮件内容</label>
@@ -47,6 +57,7 @@
                                 <strong>占位符说明：</strong>
                                 <ul class="mb-0 ps-3">
                                     <li><code>[[文件名]]</code> - 替换为Excel文件的名称，不包含扩展名</li>
+                                    <li><code>[[年月]]</code> - 替换为Excel文件内容中相关年月字段，如对账期间</li>
                                 </ul>
                             </div>
                         </div>
@@ -123,5 +134,35 @@
     <link href="/email/static/vendor/quill/quill.snow.css" rel="stylesheet">
     <script src="/email/static/vendor/quill/quill.min.js"></script>
     <script src="/email/static/js/main.js"></script>
+    
+    <!-- 邮件预览模态框 -->
+    <div class="modal fade" id="emailPreviewModal" tabindex="-1" aria-labelledby="emailPreviewModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="emailPreviewModalLabel">邮件预览</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="email-preview-container">
+              <div class="email-preview-header">
+                <div class="mb-2"><strong>收件人：</strong><span id="previewRecipient"></span></div>
+                <div class="mb-2"><strong>主题：</strong><span id="previewSubject"></span></div>
+                <hr>
+              </div>
+              <div class="email-preview-content" id="previewContent">
+                <!-- 邮件内容将在这里显示 -->
+              </div>
+              <div class="email-preview-attachments mt-3">
+                <div><strong>附件：</strong><span id="previewAttachmentName"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
 </body>
 </html>
