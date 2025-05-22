@@ -8,18 +8,43 @@ import argparse
 
 # 导入模块
 from modules.email.routes import email_bp
+from modules.file_ysm.routes import file_ysm_bp
 
-# 创建应用
-app = Flask(__name__)
+# 创建Flask应用
+app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)  # 启用CORS，允许跨域请求
 
 # 注册蓝图
 app.register_blueprint(email_bp)
+app.register_blueprint(file_ysm_bp)
 
-# 根路径重定向到工具列表页面
+# 根路径显示工具列表页面
 @app.route('/')
 def index():
     """工具列表页面"""
+    tools = [
+        {
+            'name': '邮件发送工具',
+            'path': '/email',
+            'description': '用于群发企业邮件的工具',
+            'icon': 'bi-envelope',
+            'image': 'email-tool.png'
+        },
+        {
+            'name': '隐适美账单分割',
+            'path': '/file/ysm',
+            'description': 'excel账单文件拆分成需要的文件',
+            'icon': 'bi-file-earmark',
+            'image': 'file-tool.png'
+        }
+        # 未来可以在这里添加更多工具
+    ]
+    return render_template('index.html', tools=tools)
+
+# 提供API版本的工具列表
+@app.route('/api')
+def api_index():
+    """工具列表API"""
     return jsonify({
         'status': 'ok',
         'message': 'Jarvis工具集API服务正在运行',
@@ -28,8 +53,12 @@ def index():
                 'name': '邮件发送工具',
                 'path': '/email',
                 'description': '用于发送企业邮件的工具'
+            },
+            {
+                'name': '隐适美账单分割',
+                'path': '/file/ysm',
+                'description': 'excel账单文件拆分成需要的文件'
             }
-            # 未来可以在这里添加更多工具
         ]
     })
 
