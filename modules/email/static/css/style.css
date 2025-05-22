@@ -115,6 +115,38 @@ label {
     background-color: #f9f9f9;
 }
 
+/* 匹配文件卡片样式 */
+.matched-files-card {
+    background-color: #e7f5ff;
+    border: 1px solid #90c8f8;
+    border-left: 4px solid #007bff;
+    box-shadow: 0 2px 5px rgba(0, 123, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.matched-files-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.matched-files-card .attachment-info {
+    position: relative;
+    padding-left: 5px;
+}
+
+.matched-files-card .attachment-info::before {
+    content: "匹配文件";
+    position: absolute;
+    top: -8px;
+    right: 0;
+    font-size: 0.7em;
+    background-color: #007bff;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
 .attachment-list {
     margin-top: 10px;
 }

@@ -6,7 +6,7 @@ let lastSendResults = [];
 // 预设邮件模板
 const EMAIL_TEMPLATES = {
     cleaning: {
-        name: '洁牙引流',
+        name: '洁牙引流对账单',
         subject: '[[文件名]]',
         content: `老师好， 附件是[[年月]]洁牙对账单
 1、金曜日开票信息： 详见对账单第三张表
@@ -16,6 +16,18 @@ const EMAIL_TEMPLATES = {
 诊所开具纸质发票： 纸质发票邮寄信息以最新对账单为准~
 4、核销问题， 非常重要！ 请及时核销， 不核销影响结算， 后果自负。
 ps 账单请随时保存`,
+        sender: 'finance01@jarvismedical.com'
+    },
+    offline_supplier: {
+        name: '线下供应商对账单',
+        subject: '佳沃思平台服务费',
+        content: `尊敬的[[公司]]：
+您好！感谢贵司长期以来的支持与信任。现将[[年月日范围]]服务费发送至您处，请协助完成以下流程：
+1、附件中的Excel 服务对账明细辛苦确认，确认后无误后，请邮件反馈技术服务费收取通知函盖章扫描件，我们会在收到反馈无误邮件5个工作日内开具相应的发票
+2、以上核对无误后按发票金额及时回款，完成款项支付，避免影响后续服务
+
+再次感谢您的配合！期待与贵司保持高效协作。
+顺祝商祥`,
         sender: 'finance01@jarvismedical.com'
     },
     // 可以在这里添加更多模板
@@ -127,16 +139,18 @@ function initRichTextEditor() {
 async function handleFileInputChange(event) {
     const fileInput = event.target;
     const fileTypeWarning = document.getElementById('fileTypeWarning');
+    const wordExcelWarning = document.getElementById('wordExcelWarning');
     
     // 清除警告
     fileTypeWarning.classList.add('d-none');
+    wordExcelWarning.classList.add('d-none');
     
     if (fileInput.files.length > 0) {
         // 检查文件类型
         let allValid = true;
         for (const file of fileInput.files) {
             const fileExt = file.name.split('.').pop().toLowerCase();
-            if (fileExt !== 'xlsx' && fileExt !== 'xls') {
+            if (fileExt !== 'xlsx' && fileExt !== 'xls' && fileExt !== 'doc' && fileExt !== 'docx') {
                 allValid = false;
                 break;
             }
@@ -149,17 +163,32 @@ async function handleFileInputChange(event) {
         }
         
         // 显示加载中提示
-        showLoading(true, '正在解析Excel文件...');
+        showLoading(true, '正在解析文件...');
         
         try {
-            // 处理每个文件
+            // 分类文件
+            const excelFiles = [];
+            const wordFiles = [];
+            
+            for (const file of fileInput.files) {
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                if (fileExt === 'xlsx' || fileExt === 'xls') {
+                    excelFiles.push(file);
+                } else if (fileExt === 'doc' || fileExt === 'docx') {
+                    wordFiles.push(file);
+                }
+            }
+            
+            // 先处理所有文件
             for (const file of fileInput.files) {
                 try {
                     // 读取文件内容并转换为Base64
                     const base64Data = await readFileAsBase64(file);
+                    const fileExt = file.name.split('.').pop().toLowerCase();
+                    const isWord = (fileExt === 'doc' || fileExt === 'docx');
                     
                     // 发送到后端解析
-                    const response = await fetch('/email/api/parse-excel', {
+                    const response = await fetch('/email/api/parse-file', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -179,7 +208,10 @@ async function handleFileInputChange(event) {
                             name: file.name,
                             data: base64Data,
                             email: result.email,
-                            period: result.period || '', // 添加对账期间
+                            period: result.period || '', 
+                            period_range: result.period_range || '', 
+                            company: result.company || '', 
+                            is_word: isWord,
                             size: file.size
                         });
                     } else {
@@ -190,6 +222,7 @@ async function handleFileInputChange(event) {
                             name: file.name,
                             data: base64Data,
                             error: result.message,
+                            is_word: isWord,
                             size: file.size
                         });
                     }
@@ -202,6 +235,90 @@ async function handleFileInputChange(event) {
                         size: file.size
                     });
                 }
+            }
+            
+            // 检查Word文档和Excel文件的匹配
+            // 无论是否上传了Word文件，都进行匹配检查
+            // 获取所有Excel和Word文件
+            const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
+            const wordAttachments = attachmentFiles.filter(att => att.is_word && !att.error);
+            
+            // 重置所有匹配状态
+            for (const att of attachmentFiles) {
+                if (!att.is_word && att.word_attachment) {
+                    delete att.word_attachment;
+                }
+                if (att.is_word && att.matched_excel) {
+                    delete att.matched_excel;
+                }
+                // 清除匹配相关的错误和警告
+                if (att.error === '找不到匹配的Excel文件') {
+                    delete att.error;
+                }
+                if (att.warning === '没有匹配的Word文档') {
+                    delete att.warning;
+                }
+            }
+            
+            // 检查是否有未匹配的Word文档
+            let unmatchedWord = false;
+            let unmatchedExcel = false;
+            
+            // 如果有Word文档和Excel文件，尝试匹配
+            if (wordAttachments.length > 0 && excelAttachments.length > 0) {
+                // 尝试匹配每个Word文档与Excel文件
+                for (const wordAtt of wordAttachments) {
+                    // 如果没有邮箱地址，标记为未匹配
+                    if (!wordAtt.email) {
+                        unmatchedWord = true;
+                        wordAtt.error = '无法从文档中提取邮箱地址';
+                        continue;
+                    }
+                    
+                    // 查找匹配的Excel文件
+                    const matchedExcel = excelAttachments.find(excel => excel.email === wordAtt.email);
+                    
+                    if (matchedExcel) {
+                        // 建立双向关联
+                        wordAtt.matched_excel = matchedExcel.name;
+                        matchedExcel.word_attachment = wordAtt;
+                        // 清除任何错误标记
+                        delete wordAtt.error;
+                    } else {
+                        unmatchedWord = true;
+                        wordAtt.error = '找不到匹配的Excel文件';
+                    }
+                }
+                
+                // 检查是否有未匹配的Excel文件
+                for (const excelAtt of excelAttachments) {
+                    if (!excelAtt.word_attachment) {
+                        unmatchedExcel = true;
+                        excelAtt.warning = '没有匹配的Word文档';
+                    } else {
+                        // 清除任何警告标记
+                        delete excelAtt.warning;
+                    }
+                }
+                
+                // 如果有未匹配的文件，显示警告
+                if (unmatchedWord || unmatchedExcel) {
+                    wordExcelWarning.classList.remove('d-none');
+                    showAlert('部分Word文档和Excel文件未能正确匹配，请检查邮箱地址', 'warning');
+                } else {
+                    wordExcelWarning.classList.add('d-none');
+                }
+            } else if (wordAttachments.length > 0 && excelAttachments.length === 0) {
+                // 如果只有Word文档没有Excel文件
+                for (const wordAtt of wordAttachments) {
+                    if (wordAtt.email) {
+                        wordAtt.error = '找不到匹配的Excel文件';
+                    } else {
+                        wordAtt.error = '无法从文档中提取邮箱地址';
+                    }
+                }
+                wordExcelWarning.classList.remove('d-none');
+                showAlert('没有匹配的Excel文件，请上传相应的Excel文件', 'warning');
             }
             
             // 更新附件列表显示
@@ -250,7 +367,20 @@ async function handleFormSubmit(event) {
         }
         
         // 检查是否有有效的附件
-        const validAttachments = attachmentFiles.filter(att => att.email && !att.error);
+        const validAttachments = attachmentFiles.filter(att => att.email && !att.error && !att.is_word);
+        
+        // 如果有Word文档，需要检查是否所有Excel文件都有匹配的Word文档
+        const hasWordFiles = attachmentFiles.some(att => att.is_word && !att.error);
+        if (hasWordFiles) {
+            // 检查是否有未匹配的Excel文件
+            const unmatchedExcel = validAttachments.some(att => !att.word_attachment);
+            
+            if (unmatchedExcel) {
+                showAlert('存在未匹配的Excel文件，请确保每个Excel文件都有对应的Word文档', 'warning');
+                showLoading(false);
+                return;
+            }
+        }
         if (validAttachments.length === 0) {
             showAlert('没有可用的附件，请确保文件中包含有效的邮箱地址', 'warning');
             showLoading(false);
@@ -267,12 +397,28 @@ async function handleFormSubmit(event) {
             senderEmail,
             senderPassword,
             ccSender, // 添加是否将邮件副本发送给自己的选项
-            attachments: validAttachments.map(att => ({
-                name: att.name,
-                data: att.data,
-                email: att.email,
-                period: att.period || ''
-            }))
+            attachments: validAttachments.map(att => {
+                // 基本附件信息
+                const attachmentData = {
+                    name: att.name,
+                    data: att.data,
+                    email: att.email,
+                    period: att.period || '',
+                    period_range: att.period_range || '',
+                    company: att.company || '',
+                    is_word: att.is_word || false
+                };
+                
+                // 如果是Excel文件且有匹配的Word文档，添加Word附件信息
+                if (!att.is_word && att.word_attachment) {
+                    attachmentData.word_attachment = {
+                        name: att.word_attachment.name,
+                        data: att.word_attachment.data
+                    };
+                }
+                
+                return attachmentData;
+            })
         };
         
         // 发送请求
@@ -403,69 +549,350 @@ function readFileAsBase64(file) {
 // 更新附件列表显示
 function updateAttachmentList() {
     const attachmentList = document.getElementById('attachmentList');
+    
+    if (attachmentFiles.length === 0) {
+        attachmentList.innerHTML = '<div class="text-center text-muted py-3">暂无上传文件</div>';
+        return;
+    }
+    
+    // 清空列表
     attachmentList.innerHTML = '';
     
+    // 创建已处理文件的集合，用于跟踪已显示的文件
+    const processedFiles = new Set();
+    
+    // 首先处理所有Excel文件及其匹配的Word文档
     attachmentFiles.forEach((attachment, index) => {
-        // 创建附件项
-        const attachmentItem = document.createElement('div');
-        attachmentItem.className = 'attachment-item';
-        
-        // 附件信息区域
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'attachment-info';
-        
-        // 文件名称和大小
-        const nameSpan = document.createElement('div');
-        nameSpan.textContent = `${attachment.name} (${formatFileSize(attachment.size)})`;
-        infoDiv.appendChild(nameSpan);
-        
-        // 邮箱或错误信息
-        if (attachment.email) {
-            const emailSpan = document.createElement('div');
-            emailSpan.className = 'attachment-email';
-            emailSpan.textContent = `收件人: ${attachment.email}`;
-            infoDiv.appendChild(emailSpan);
-        } else if (attachment.error) {
-            const errorSpan = document.createElement('div');
-            errorSpan.className = 'text-danger';
-            errorSpan.textContent = `错误: ${attachment.error}`;
-            infoDiv.appendChild(errorSpan);
+        // 如果已经处理过该文件或者是Word文档，则跳过
+        if (processedFiles.has(index) || attachment.is_word) {
+            return;
         }
         
-        // 按钮容器
-        const btnContainer = document.createElement('div');
-        btnContainer.className = 'attachment-buttons';
-        
-        // 预览按钮 - 只有当有邮箱地址时才显示
-        if (attachment.email) {
-            const previewBtn = document.createElement('button');
-            previewBtn.className = 'btn btn-sm btn-outline-primary me-2';
-            previewBtn.innerHTML = '<i class="bi bi-eye"></i> 预览';
-            previewBtn.type = 'button'; // 明确设置为按钮类型，防止触发表单提交
-            previewBtn.onclick = (e) => {
-                e.preventDefault(); // 防止事件冒泡和默认行为
-                e.stopPropagation(); // 阻止事件冒泡
-                previewEmail(index);
-            };
-            btnContainer.appendChild(previewBtn);
+        // 再次尝试匹配 - 这是为了处理先上传Word再上传Excel的情况
+        if (attachment.email && !attachment.word_attachment) {
+            // 查找匹配的Word文档
+            const wordAttachments = attachmentFiles.filter(att => att.is_word && !att.error);
+            const matchedWord = wordAttachments.find(word => word.email === attachment.email);
+            
+            if (matchedWord) {
+                // 建立双向关联
+                matchedWord.matched_excel = attachment.name;
+                attachment.word_attachment = matchedWord;
+                // 清除Word文档的错误
+                if (matchedWord.error === '找不到匹配的Excel文件') {
+                    delete matchedWord.error;
+                }
+                // 清除警告
+                delete attachment.warning;
+                // 隐藏警告信息
+                const wordExcelWarning = document.getElementById('wordExcelWarning');
+                if (!attachmentFiles.some(att => (att.error && att.error.includes('匹配')) || (att.warning && att.warning.includes('匹配')))) {
+                    wordExcelWarning.classList.add('d-none');
+                }
+            }
         }
+        
+        const fileItem = document.createElement('div');
+        fileItem.className = 'attachment-item';
+        
+        // 根据是否有错误设置不同的样式
+        if (attachment.error) {
+            fileItem.classList.add('attachment-error');
+        } else if (attachment.warning) {
+            fileItem.classList.add('attachment-warning');
+        }
+        
+        // 文件信息区域
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'attachment-info';
+        
+        // 检查是否有匹配的Word文档
+        const wordAttachment = attachment.word_attachment;
+        const hasWordMatch = wordAttachment && !wordAttachment.error;
+        
+        // 如果有匹配的Word文档，创建一个卡片式布局
+        if (hasWordMatch) {
+            // 标记该Word文档已处理
+            const wordIndex = attachmentFiles.findIndex(att => att === wordAttachment);
+            if (wordIndex !== -1) {
+                processedFiles.add(wordIndex);
+            }
+            
+            // 创建卡片式布局
+            fileItem.classList.add('matched-files-card');
+            
+            // 邮箱信息
+            if (attachment.email) {
+                const emailInfo = document.createElement('div');
+                emailInfo.className = 'matched-email-info';
+                emailInfo.innerHTML = `<span class="text-success"><i class="bi bi-envelope"></i> ${attachment.email}</span>`;
+                fileInfo.appendChild(emailInfo);
+            }
+            
+            // Excel文件信息
+            const excelFileInfo = document.createElement('div');
+            excelFileInfo.className = 'matched-file-info';
+            excelFileInfo.innerHTML = `
+                <div class="file-icon"><i class="bi bi-file-earmark-excel"></i></div>
+                <div class="file-details">
+                    <div class="file-name">${attachment.name}</div>
+                    <div class="file-size text-muted">${formatFileSize(attachment.size)}</div>
+                </div>
+            `;
+            
+            // Word文档信息
+            const wordFileInfo = document.createElement('div');
+            wordFileInfo.className = 'matched-file-info';
+            wordFileInfo.innerHTML = `
+                <div class="file-icon"><i class="bi bi-file-earmark-word"></i></div>
+                <div class="file-details">
+                    <div class="file-name">${wordAttachment.name}</div>
+                    <div class="file-size text-muted">${formatFileSize(wordAttachment.size)}</div>
+                </div>
+            `;
+            
+            // 添加到文件信息区
+            const filesContainer = document.createElement('div');
+            filesContainer.className = 'matched-files-container';
+            filesContainer.appendChild(excelFileInfo);
+            filesContainer.appendChild(wordFileInfo);
+            fileInfo.appendChild(filesContainer);
+            
+            // 操作按钮
+            const fileActions = document.createElement('div');
+            fileActions.className = 'attachment-actions';
+            
+            // 预览按钮
+            if (attachment.email && !attachment.error) {
+                const previewButton = document.createElement('button');
+                previewButton.className = 'btn btn-sm btn-outline-primary me-2';
+                previewButton.innerHTML = '<i class="bi bi-eye"></i>';
+                previewButton.title = '预览邮件';
+                previewButton.onclick = (event) => {
+                    event.preventDefault(); // 防止页面滚动到顶部
+                    previewEmail(index);
+                    return false;
+                };
+                fileActions.appendChild(previewButton);
+            }
+            
+            // 删除按钮
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'btn btn-sm btn-outline-danger';
+            deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+            deleteButton.title = '删除附件';
+            deleteButton.onclick = () => removeAttachment(index);
+            fileActions.appendChild(deleteButton);
+            
+            // 组装文件项
+            fileItem.appendChild(fileInfo);
+            fileItem.appendChild(fileActions);
+            
+            // 添加到列表
+            attachmentList.appendChild(fileItem);
+        } else {
+            // 如果没有匹配的Word文档，使用原来的单文件布局
+            
+            // 文件图标
+            const fileIcon = document.createElement('div');
+            fileIcon.className = 'attachment-icon';
+            fileIcon.innerHTML = '<i class="bi bi-file-earmark-excel"></i>';
+            
+            // 文件名称
+            const fileName = document.createElement('div');
+            fileName.className = 'attachment-name';
+            fileName.textContent = attachment.name;
+            
+            // 文件详情
+            const fileDetails = document.createElement('div');
+            fileDetails.className = 'attachment-details';
+            
+            if (attachment.error) {
+                // 如果有错误，显示错误信息
+                fileDetails.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ${attachment.error}</span>`;
+            } else if (attachment.warning) {
+                // 如果有警告，显示警告信息
+                fileDetails.innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-circle"></i> ${attachment.warning}</span>`;
+            } else {
+                // 显示文件大小和收件人邮箱
+                let detailsHTML = `<span class="text-muted">${formatFileSize(attachment.size)}</span>`;
+                
+                if (attachment.email) {
+                    detailsHTML += `<span class="text-success ms-2"><i class="bi bi-envelope"></i> ${attachment.email}</span>`;
+                }
+                
+                fileDetails.innerHTML = detailsHTML;
+            }
+            
+            // 添加到文件信息区
+            fileInfo.appendChild(fileName);
+            fileInfo.appendChild(fileDetails);
+            
+            // 操作按钮
+            const fileActions = document.createElement('div');
+            fileActions.className = 'attachment-actions';
+            
+            // 预览按钮
+            if (attachment.email && !attachment.error) {
+                const previewButton = document.createElement('button');
+                previewButton.className = 'btn btn-sm btn-outline-primary me-2';
+                previewButton.innerHTML = '<i class="bi bi-eye"></i>';
+                previewButton.title = '预览邮件';
+                previewButton.onclick = (event) => {
+                    event.preventDefault(); // 防止页面滚动到顶部
+                    previewEmail(index);
+                    return false;
+                };
+                fileActions.appendChild(previewButton);
+            }
+            
+            // 删除按钮
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'btn btn-sm btn-outline-danger';
+            deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+            deleteButton.title = '删除附件';
+            deleteButton.onclick = () => removeAttachment(index);
+            fileActions.appendChild(deleteButton);
+            
+            // 组装文件项
+            fileItem.appendChild(fileIcon);
+            fileItem.appendChild(fileInfo);
+            fileItem.appendChild(fileActions);
+            
+            // 添加到列表
+            attachmentList.appendChild(fileItem);
+        }
+        
+        // 标记该文件已处理
+        processedFiles.add(index);
+    });
+    
+    // 处理未匹配的Word文档
+    attachmentFiles.forEach((attachment, index) => {
+        if (processedFiles.has(index) || !attachment.is_word) {
+            return;
+        }
+        
+        // 再次尝试匹配 - 这是为了处理先上传Word再上传Excel的情况
+        if (attachment.email && !attachment.matched_excel && !attachment.error) {
+            // 查找匹配的Excel文件
+            const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
+            const matchedExcel = excelAttachments.find(excel => excel.email === attachment.email);
+            
+            if (matchedExcel) {
+                // 建立双向关联
+                attachment.matched_excel = matchedExcel.name;
+                matchedExcel.word_attachment = attachment;
+                // 清除错误标记
+                delete attachment.error;
+                // 清除Excel文件的警告
+                if (matchedExcel.warning === '没有匹配的Word文档') {
+                    delete matchedExcel.warning;
+                }
+                // 隐藏警告信息
+                const wordExcelWarning = document.getElementById('wordExcelWarning');
+                if (!attachmentFiles.some(att => att.error && att.error.includes('匹配'))) {
+                    wordExcelWarning.classList.add('d-none');
+                }
+            }
+        }
+        
+        const fileItem = document.createElement('div');
+        fileItem.className = 'attachment-item';
+        
+        // 根据是否有错误设置不同的样式
+        if (attachment.error) {
+            fileItem.classList.add('attachment-error');
+        }
+        
+        // 文件图标
+        const fileIcon = document.createElement('div');
+        fileIcon.className = 'attachment-icon';
+        fileIcon.innerHTML = '<i class="bi bi-file-earmark-word"></i>';
+        
+        // 文件信息
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'attachment-info';
+        
+        // 文件名称
+        const fileName = document.createElement('div');
+        fileName.className = 'attachment-name';
+        fileName.textContent = attachment.name;
+        
+        // 文件详情
+        const fileDetails = document.createElement('div');
+        fileDetails.className = 'attachment-details';
+        
+        if (attachment.error) {
+            // 如果有错误，显示错误信息
+            fileDetails.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ${attachment.error}</span>`;
+        } else {
+            // 显示文件大小和收件人邮箱
+            let detailsHTML = `<span class="text-muted">${formatFileSize(attachment.size)}</span>`;
+            
+            if (attachment.email) {
+                detailsHTML += `<span class="text-success ms-2"><i class="bi bi-envelope"></i> ${attachment.email}</span>`;
+            }
+            
+            if (attachment.matched_excel) {
+                detailsHTML += `<span class="text-info ms-2"><i class="bi bi-link"></i> 匹配: ${attachment.matched_excel}</span>`;
+            } else {
+                detailsHTML += `<span class="text-warning ms-2"><i class="bi bi-exclamation-circle"></i> 未匹配</span>`;
+            }
+            
+            fileDetails.innerHTML = detailsHTML;
+        }
+        
+        // 添加到文件信息区
+        fileInfo.appendChild(fileName);
+        fileInfo.appendChild(fileDetails);
+        
+        // 操作按钮
+        const fileActions = document.createElement('div');
+        fileActions.className = 'attachment-actions';
         
         // 删除按钮
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-sm btn-outline-danger';
-        removeBtn.innerHTML = '<i class="bi bi-trash"></i> 删除';
-        removeBtn.onclick = () => removeAttachment(index);
-        btnContainer.appendChild(removeBtn);
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'btn btn-sm btn-outline-danger';
+        deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+        deleteButton.title = '删除附件';
+        deleteButton.onclick = () => removeAttachment(index);
+        fileActions.appendChild(deleteButton);
         
-        // 添加到附件项
-        attachmentItem.appendChild(infoDiv);
-        attachmentItem.appendChild(btnContainer);
-        attachmentList.appendChild(attachmentItem);
+        // 组装文件项
+        fileItem.appendChild(fileIcon);
+        fileItem.appendChild(fileInfo);
+        fileItem.appendChild(fileActions);
+        
+        // 添加到列表
+        attachmentList.appendChild(fileItem);
+        
+        // 标记该文件已处理
+        processedFiles.add(index);
     });
 }
 
 // 删除附件
 function removeAttachment(index) {
+    const attachment = attachmentFiles[index];
+    
+    // 如果是Excel文件且有匹配的Word文档，也需要删除Word文档
+    if (!attachment.is_word && attachment.word_attachment) {
+        const wordIndex = attachmentFiles.findIndex(att => att === attachment.word_attachment);
+        if (wordIndex !== -1) {
+            attachmentFiles.splice(wordIndex, 1);
+        }
+    }
+    
+    // 如果是Word文档且有匹配的Excel文件，需要移除Excel文件的关联
+    if (attachment.is_word && attachment.matched_excel) {
+        const excelAttachment = attachmentFiles.find(att => att.name === attachment.matched_excel);
+        if (excelAttachment) {
+            delete excelAttachment.word_attachment;
+        }
+    }
+    
+    // 删除当前附件
     attachmentFiles.splice(index, 1);
     updateAttachmentList();
 }
@@ -671,10 +1098,16 @@ function formatFileSize(bytes) {
     else return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
+// 当前预览的附件索引
+let currentPreviewIndex = -1;
+
 // 预览邮件内容
 function previewEmail(index) {
     const attachment = attachmentFiles[index];
     if (!attachment || !attachment.email) return;
+    
+    // 记录当前预览的附件索引，用于直接发送
+    currentPreviewIndex = index;
     
     // 获取当前邮件主题和内容
     const subject = document.getElementById('subject').value;
@@ -694,15 +1127,144 @@ function previewEmail(index) {
         previewContent = previewContent.replace(/\[\[年月\]\]/g, attachment.period);
     }
     
+    // 如果有年月日范围，替换[[年月日范围]]占位符
+    if (attachment.period_range) {
+        previewSubject = previewSubject.replace(/\[\[年月日范围\]\]/g, attachment.period_range);
+        previewContent = previewContent.replace(/\[\[年月日范围\]\]/g, attachment.period_range);
+    }
+    
+    // 如果有公司信息，替换[[公司]]占位符
+    if (attachment.company) {
+        previewSubject = previewSubject.replace(/\[\[公司\]\]/g, attachment.company);
+        previewContent = previewContent.replace(/\[\[公司\]\]/g, attachment.company);
+    }
+    
     // 更新预览模态框内容
     document.getElementById('previewRecipient').textContent = attachment.email;
     document.getElementById('previewSubject').textContent = previewSubject;
     document.getElementById('previewContent').innerHTML = previewContent;
-    document.getElementById('previewAttachmentName').textContent = filename;
+    
+    // 显示所有附件（Excel和Word）
+    let attachmentText = filename;
+    
+    // 如果是Excel文件且有匹配的Word文档
+    if (!attachment.is_word && attachment.word_attachment) {
+        attachmentText = `${filename}, ${attachment.word_attachment.name}`;
+    } 
+    // 如果是Word文档且有匹配的Excel文件
+    else if (attachment.is_word && attachment.matched_excel) {
+        const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
+        const matchedExcel = excelAttachments.find(excel => excel.email === attachment.email);
+        if (matchedExcel) {
+            attachmentText = `${matchedExcel.name}, ${filename}`;
+        }
+    }
+    
+    document.getElementById('previewAttachmentName').textContent = attachmentText;
     
     // 显示预览模态框
     const previewModal = new bootstrap.Modal(document.getElementById('emailPreviewModal'));
     previewModal.show();
+}
+
+// 从预览界面发送单个邮件
+async function sendEmailFromPreview() {
+    // 关闭预览模态框
+    const previewModal = bootstrap.Modal.getInstance(document.getElementById('emailPreviewModal'));
+    previewModal.hide();
+    
+    // 显示加载中提示
+    showLoading(true, '正在发送邮件，请稍候...');
+    
+    try {
+        // 获取当前预览的附件
+        const attachment = attachmentFiles[currentPreviewIndex];
+        if (!attachment || !attachment.email) {
+            showAlert('找不到有效的附件信息', 'warning');
+            showLoading(false);
+            return;
+        }
+        
+        // 获取表单数据
+        const subject = document.getElementById('subject').value;
+        const content = document.getElementById('content').value;
+        const senderEmail = document.getElementById('senderEmail').value;
+        const senderPassword = document.getElementById('senderPassword').value;
+        
+        // 验证发送邮箱和密码
+        if (!senderEmail || !senderPassword) {
+            showAlert('请填写发送邮箱和密码', 'warning');
+            showLoading(false);
+            return;
+        }
+        
+        // 验证表单
+        if (!subject || !content) {
+            showAlert('请填写主题和内容', 'warning');
+            showLoading(false);
+            return;
+        }
+        
+        // 准备附件数据
+        const attachmentData = {
+            name: attachment.name,
+            data: attachment.data,
+            email: attachment.email,
+            period: attachment.period || '',
+            period_range: attachment.period_range || '',
+            company: attachment.company || '',
+            is_word: attachment.is_word || false
+        };
+        
+        // 如果是Excel文件且有匹配的Word文档，添加Word附件信息
+        if (!attachment.is_word && attachment.word_attachment) {
+            attachmentData.word_attachment = {
+                name: attachment.word_attachment.name,
+                data: attachment.word_attachment.data
+            };
+        }
+        
+        // 获取是否将邮件副本发送给自己的选项
+        const ccSender = document.getElementById('ccSender').checked;
+        
+        // 准备请求数据
+        const requestData = {
+            subject,
+            content,
+            senderEmail,
+            senderPassword,
+            ccSender,
+            attachments: [attachmentData]
+        };
+        
+        // 发送请求
+        const response = await fetch('/email/api/send-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        // 处理响应
+        const result = await response.json();
+        
+        // 保存结果用于可能的重发
+        lastSendResults = result.results || [];
+        
+        // 显示结果
+        if (result.success) {
+            showAlert('邮件发送成功！', 'success');
+            showDetailedResults(result.results);
+        } else {
+            showAlert(result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('发送邮件时出错:', error);
+        showAlert(`发送邮件时出错: ${error.message}`, 'danger');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // 显示/隐藏加载中提示

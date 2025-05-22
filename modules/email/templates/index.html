@@ -30,7 +30,13 @@
                                     <div class="template-icon">
                                         <i class="bi bi-file-earmark-medical"></i>
                                     </div>
-                                    <div class="template-name">洁牙引流</div>
+                                    <div class="template-name">洁牙引流对账单</div>
+                                </div>
+                                <div class="template-item" data-template="offline_supplier">
+                                    <div class="template-icon">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                                    </div>
+                                    <div class="template-name">线下供应商对账单</div>
                                 </div>
                                 <!-- 可以在这里添加更多模板项 -->
                             </div>
@@ -63,6 +69,8 @@
                                 <ul class="mb-0 ps-3">
                                     <li><code>[[文件名]]</code> - 替换为Excel文件的名称，不包含扩展名</li>
                                     <li><code>[[年月]]</code> - 替换为Excel文件内容中相关年月字段，如对账期间</li>
+                                    <li><code>[[年月日范围]]</code> - 替换为Excel文件内容中相关年月日范围字段，如结算期间</li>
+                                    <li><code>[[公司]]</code> - 替换为Excel文件中“公司：”后面的值</li>
                                 </ul>
                             </div>
                         </div>
@@ -74,16 +82,22 @@
                                         <i class="bi bi-cloud-arrow-up"></i>
                                     </div>
                                     <div class="file-upload-text">
-                                        点击或拖拽上传Excel文件
+                                        点击或拖拽上传Excel文件或Word文档
                                     </div>
                                     <div class="form-text mt-2">
-                                        系统将自动从文件中提取“接收账单邮箱”相邻单元格的邮箱地址作为收件人
+                                        系统将自动从文件中提取"接收邮箱"或"接收账单邮箱"相邻单元格的邮箱地址作为收件人
+                                    </div>
+                                    <div class="form-text mt-1">
+                                        如果上传Word文档，需要与Excel文件一一对应，系统会从文档中提取"接收邮箱："后面的值进行匹配
                                     </div>
                                 </label>
-                                <input type="file" class="d-none" id="attachmentInput" accept=".xlsx, .xls" multiple>
+                                <input type="file" class="d-none" id="attachmentInput" accept=".xlsx, .xls, .doc, .docx" multiple>
                             </div>
                             <div class="file-type-warning d-none" id="fileTypeWarning">
-                                <i class="bi bi-exclamation-triangle"></i> 请只上传Excel格式的文件（.xlsx或.xls）
+                                <i class="bi bi-exclamation-triangle"></i> 请只上传Excel格式（.xlsx或.xls）或Word格式（.doc或.docx）的文件
+                            </div>
+                            <div class="file-type-warning d-none" id="wordExcelWarning">
+                                <i class="bi bi-exclamation-triangle"></i> Word文档需要与Excel文件一一对应，请确保邮箱地址匹配
                             </div>
                         </div>
                         
