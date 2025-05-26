@@ -20,23 +20,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const logoImage = document.getElementById('logoImage');
     
     // Word模板文件路径
-    const wordTemplatePath = 'static/通知函模板.docx';
+    const wordTemplatePath = '/file/supplier/static/通知函模板.docx';
     let wordTemplateContent = null;
     
     // 页面加载时预加载Word模板
     fetch(wordTemplatePath)
         .then(response => {
             if (!response.ok) {
-                throw new Error(`无法加载Word模板文件: ${response.status} ${response.statusText}`);
+                throw new Error(`无法加载Word模板文件`);
             }
             return response.arrayBuffer();
         })
         .then(buffer => {
             wordTemplateContent = buffer;
-            log('Word模板文件加载成功', 'success');
         })
         .catch(error => {
-            log(`加载Word模板文件失败: ${error.message}`, 'error');
+            log(`加载Word模板文件失败`, 'error');
         });
     
     // 日志记录函数
@@ -345,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 每10%记录一次日志
                 if (percentLoaded % 10 === 0) {
-                    log(`读取文件进度: ${Math.round((e.loaded / e.total) * 100)}%`);
+                    // 读取文件进度
                 }
             }
         };
@@ -356,24 +355,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 progressBar.style.width = '30%';
                 progressBar.setAttribute('aria-valuenow', 30);
                 
-                log('文件读取完成，开始解析Excel数据');
+                log('文件读取完成，开始解析数据');
                 
                 // 使用ExcelJS库解析Excel文件
                 const data = new Uint8Array(e.target.result);
                 workbook = new ExcelJS.Workbook();
                 
                 workbook.xlsx.load(data).then(function() {
-                    log(`成功解析Excel文件，包含 ${workbook.worksheets.length} 个工作表`, 'success');
+                    log('数据解析成功', 'success');
                     
                     // 处理Excel文件
                     processExcelWorkbook(workbook);
                 }).catch(error => {
-                    log(`解析Excel文件时出错: ${error.message}`, 'error');
+                    log('解析数据时出错', 'error');
                     showError(`解析Excel文件时出错: ${error.message}`);
                     progressContainer.classList.add('d-none');
                 });
             } catch (error) {
-                log(`处理Excel文件时出错: ${error.message}`, 'error');
+                log('处理文件时出错', 'error');
                 showError(`处理Excel文件时出错: ${error.message}`);
                 progressContainer.classList.add('d-none');
             }
@@ -395,12 +394,12 @@ document.addEventListener('DOMContentLoaded', function() {
             progressBar.style.width = '40%';
             progressBar.setAttribute('aria-valuenow', 40);
             
-            log('开始处理Excel数据...');
+            log('开始处理数据...');
             
             // 获取第一个工作表
             const worksheet = workbook.worksheets[0];
             
-            log(`正在读取工作表: ${worksheet.name}`);
+            // 读取工作表
             
             // 将工作表转换为JSON
             // 使用setTimeout来避免UI卡顿
@@ -425,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     });
                     
-                    log(`成功读取 ${jsonData.length} 行数据`);
+                    // 读取数据完成
                     
                     if (jsonData.length === 0) {
                         throw new Error('文件不包含数据');
@@ -436,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         throw new Error('文件中没有"供应商"列');
                     }
                     
-                    log('文件包含有效的"供应商"列，开始分组数据', 'success');
+                    // 开始分组数据
                     
                     // 更新进度条
                     progressBar.style.width = '50%';
@@ -445,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 分批处理数据分组
                     groupDataByBatch(jsonData, workbook);
                 } catch (error) {
-                    log(`处理Excel数据时出错: ${error.message}`, 'error');
+                    log('处理数据时出错', 'error');
                     showError(`处理Excel文件时出错: ${error.message}`);
                     progressContainer.classList.add('d-none');
                 }
@@ -477,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 每处理500行记录一次日志
                 if (processedRows > 0 && processedRows % 500 === 0) {
-                    log(`已处理 ${processedRows} 行数据...`);
+                    // 处理数据进度
                 }
                 
                 const supplier = row['供应商'];
@@ -512,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function finishGroupingAndProcessSuppliers(supplierGroups, rowCount, workbook) {
         // 创建ZIP实例
         zip = new JSZip();
-        log('创建ZIP文件实例成功');
+        // ZIP文件实例创建成功
         
         // 清空结果数组
         splitResults = [];
@@ -547,12 +546,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 格式化为中文日期字符串
         const nextMonthFirstDay = `${nextMonth.year()}年${nextMonth.month() + 1}月1日`;
-        log(`下一个月第一天: ${nextMonthFirstDay}`);
-        
         // 当前日期
         const now = dayjs();
         const currentDate = `${now.year()}年${now.month() + 1}月${now.date()}日`;
-        log(`当前日期: ${currentDate}`);
         
         // 准备数据字典，用于替换模板中的占位符
         const settlementPeriodEnd = periodParts[1]; // 结算期间的结束日期
@@ -572,10 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
             nextMonthFirstDay: String(nextMonthFirstDay || '')
         };
         
-        // 打印模板变量以便调试
-        Object.keys(templateData).forEach(key => {
-            log(`模板变量 ${key} = ${templateData[key]}`);
-        });
+        // 模板变量准备完成
         
         // 使用Docxtemplater处理Word模板
         return new Promise((resolve, reject) => {
@@ -588,12 +581,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     return response.arrayBuffer();
                 })
                 .then(templateBuffer => {
-                    log('模板文件加载成功，开始处理...');
+                    log('Word通知函文档生成中...');
                     
                     // 检查PizZip是否可用
                     if (!window.PizZip) {
-                        log('PizZip未定义，尝试使用备用库...', 'warning');
-                        // 尝试使用备用库
                         window.PizZip = window.Pizzip || window.JSZip;
                         
                         if (!window.PizZip) {
@@ -603,7 +594,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // 使用PizZip加载Word文档
                     const zip = new window.PizZip(templateBuffer);
-                    log('PizZip实例创建成功');
                     
                     // 检查docxtemplater是否可用
                     if (!window.docxtemplater) {
@@ -611,24 +601,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     // 创建Docxtemplater实例
-                    log('开始创建docxtemplater实例...');
-                    
-                    // 使用自定义分隔符来避免标签重复问题
                     const doc = new window.docxtemplater();
                     doc.loadZip(zip);
-                    log('docxtemplater实例创建成功');
-                    
-                    // 打印日志以便调试
-                    Object.keys(templateData).forEach(key => {
-                        log(`设置模板变量 ${key} = ${templateData[key] || '(空)'}`);
-                    });
                     
                     // 设置模板变量
                     doc.setData(templateData);
                     
                     // 渲染模板
                     doc.render();
-                    log('模板渲染成功');
                     
                     // 获取生成的Word文档
                     const generatedDoc = doc.getZip().generate({
@@ -651,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const endIndex = Math.min(startIndex + batchSize, suppliers.length);
         let processedCount = 0; // 已处理的供应商数量
         
-        log(`开始处理供应商批次: ${startIndex + 1} 至 ${endIndex} / ${suppliers.length}`);
+        log(`开始处理供应商: ${startIndex + 1} 至 ${endIndex} / ${suppliers.length}`);
         
         // 创建ZIP文件对象
         if (!zip) {
@@ -665,7 +645,7 @@ document.addEventListener('DOMContentLoaded', function() {
             log(`处理供应商 [${index+1}/${suppliers.length}]: ${supplier}`);
             
             const supplierData = supplierGroups[supplier];
-            log(`该供应商共有 ${supplierData.length} 条订单数据`);
+            // 订单数据统计
             
             // 获取结算期间
             const settlementPeriod = supplierData[0]['结算周期'] || '未知周期';
@@ -796,16 +776,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     const logoCell = worksheet1.getCell('A1');
                     logoCell.alignment = { vertical: 'middle', horizontal: 'center' };
                     
-                    log('成功添加Logo图片到结算表', 'success');
+                    // 添加Logo成功
                 } else {
-                    log('未找到Logo图片或图片未加载完成', 'warning');
+                    // Logo图片未加载
                 }
             } catch (error) {
-                log(`添加图片时出错: ${error.message}`, 'warning');
+                // 添加图片时出错
             }
             
             // 创建已发货表 - 保持原始表格的字段和格式
-            log('开始生成已发货表，保持原始表格结构');
+            // 开始生成已发货表
             
             // 创建已发货表
             const worksheet2 = workbook.addWorksheet('已发货表');
@@ -818,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     originalHeaders[colNumber - 1] = cell.value;
                 });
             } catch (error) {
-                log(`获取原始表头时出错: ${error.message}`, 'error');
+                log('获取表头时出错', 'error');
             }
             
             // 创建sheet2的数据，保持原始列结构
@@ -847,7 +827,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            log(`已发货表生成完成，共包含 ${matchedRows} 行数据`, 'success');
+            log(`已发货表生成完成`, 'success');
             
             log('正在生成Excel文件...');
             
@@ -855,7 +835,7 @@ document.addEventListener('DOMContentLoaded', function() {
             workbook.xlsx.writeBuffer().then(async excelBuffer => {
                 // 添加Excel文件到ZIP
                 zip.file(filename, excelBuffer);
-                log(`已将Excel文件 ${filename} 添加到ZIP包中，文件大小: ${(excelBuffer.byteLength / 1024).toFixed(2)} KB`);
+                log(`Excel文件 ${filename} 生成成功`);
                 
                 // 生成Word文档（DOCX格式）
                 const wordFilename = `${settlementPeriod}${supplier}服务费通知函.docx`;
@@ -874,7 +854,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (wordBuffer) {
                     // 添加Word文档到ZIP
                     zip.file(wordFilename, wordBuffer);
-                    log(`已将Word文档 ${wordFilename} 添加到ZIP包中，文件大小: ${(wordBuffer.size / 1024).toFixed(2)} KB`, 'success');
+                    log(`Word文档 ${wordFilename} 生成成功`, 'success');
                 }
                 
                 // 添加到结果列表
@@ -913,20 +893,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 显示处理结果
     function showResults(data) {
-        log('开始显示拆分结果...');
-        
         // 显示结果区域
         resultSection.classList.remove('d-none');
-        
-        // 设置结果消息
-        resultMessage.textContent = `成功拆分为 ${data.length} 个供应商文件`;
         
         // 清空结果表格
         resultTable.innerHTML = '';
         
         // 填充结果表格
-        log('生成结果表格...');
-        
         data.forEach(file => {
             const row = document.createElement('tr');
             
@@ -970,7 +943,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
-        log('结果显示完成，可以单独下载或打包下载所有文件', 'success');
+        log('处理完成，可以单独下载或打包下载所有文件');
         
         // 隐藏进度条
         setTimeout(() => {
