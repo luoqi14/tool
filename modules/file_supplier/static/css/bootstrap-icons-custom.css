@@ -1,0 +1,27 @@
+/* 自定义Bootstrap Icons CSS，只包含我们需要的图标 */
+
+/* 使用Unicode字符代替字体图标 */
+.bi-file-earmark-spreadsheet::before { content: "\f121"; }
+.bi-info-circle::before { content: "\f430"; }
+.bi-cloud-upload::before { content: "\f5ee"; }
+.bi-gear::before { content: "\f3e4"; }
+.bi-terminal::before { content: "\f6f6"; }
+.bi-list-check::before { content: "\f472"; }
+.bi-download::before { content: "\f30a"; }
+.bi-house::before { content: "\f425"; }
+
+/* 基本样式 */
+.bi::before,
+[class^="bi-"]::before,
+[class*=" bi-"]::before {
+  display: inline-block;
+  font-family: sans-serif;
+  font-style: normal;
+  font-weight: normal !important;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: -.125em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

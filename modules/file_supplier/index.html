@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>供应商账单拆分工具</title>
+    <!-- Bootstrap CSS -->
+    <link href="static/css/lib/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons (自定义版本) -->
+    <link href="static/css/bootstrap-icons-custom.css" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link href="static/css/style.css" rel="stylesheet">
+    <!-- 引入ExcelJS库处理Excel文件 -->
+    <script src="static/js/lib/exceljs.min.js"></script>
+    <!-- 引入JSZip库用于打包下载 -->
+    <script src="static/js/lib/jszip.min.js"></script>
+    <!-- 引入FileSaver库用于保存文件 -->
+    <script src="static/js/lib/FileSaver.min.js"></script>
+    <!-- 引入PizZip库用于处理ZIP文件 -->
+    <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip.js"></script>
+    <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip-utils.js"></script>
+    <!-- 引入docxtemplater库用于处理Word模板 -->
+    <script src="https://unpkg.com/docxtemplater@3.37.11/build/docxtemplater.js"></script>
+    <!-- 引入dayjs库用于处理日期 -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <script>
+        // 确保PizZip可用
+        window.PizZip = window.PizZip || window.Pizzip || window.JSZip;
+    </script>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">供应商账单拆分工具</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info" role="alert">
+                            <h5>使用说明</h5>
+                            <p>本工具用于拆分供应商账单文件，按供应商列拆分成独立的Excel和Word文件。<strong>所有处理过程均在浏览器中完成，不会上传数据到服务器。</strong></p>
+                            <ol>
+                                <li>上传包含供应商数据的Excel文件</li>
+                                <li>系统会按照“供应商”列自动拆分文件</li>
+                                <li>每个供应商生成一个独立的Excel文件（包含结算表和已发货表）和一个Word文档（服务费通知函）</li>
+                                <li>可以批量下载所有文件（ZIP格式）或单独下载某个供应商的文件</li>
+                            </ol>
+                        </div>
+
+                        <div class="upload-section mt-4">
+                            <h5 class="mb-3">选择Excel文件</h5>
+                            <div class="card shadow-sm">
+                                <div class="card-body text-center">
+                                    <div class="mb-4">
+                                        <i class="bi bi-file-earmark-excel display-4 text-primary"></i>
+                                    </div>
+                                    
+                                    <div class="upload-area mb-3 p-4 border border-2 rounded" id="dropArea" style="transition: all 0.3s ease;">
+                                        <div class="d-flex flex-column align-items-center">
+                                            <div class="mb-3">
+                                                <input type="file" id="fileInput" accept=".xlsx" class="d-none">
+                                                <button class="btn btn-outline-primary btn-lg" onclick="document.getElementById('fileInput').click()">
+                                                    <i class="bi bi-upload"></i> 选择Excel文件
+                                                </button>
+                                            </div>
+                                            <div id="fileNameDisplay" class="text-muted mb-3 fs-5">未选择任何文件</div>
+                                            <button id="processBtn" class="btn btn-primary btn-lg px-5" disabled>
+                                                <i class="bi bi-gear-fill"></i> 处理并拆分
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <style>
+                                        .upload-area {
+                                            background-color: #ffffff;
+                                            border-color: #dee2e6;
+                                            min-height: 200px;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+                                        .upload-area.drag-highlight {
+                                            background-color: #f8f9fa;
+                                            border-color: #0d6efd;
+                                            border-style: dashed;
+                                        }
+                                    </style>
+                                    
+                                    <div class="text-muted small">
+                                        <p class="mb-1">支持.xlsx格式的Excel文件 | 所有处理在浏览器中进行</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="progress mt-3 d-none" id="progressContainer">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        
+                        <div class="log-section mt-3 d-none" id="logSection">
+                            <h5>处理日志</h5>
+                            <div class="log-container p-2 bg-dark text-light rounded" style="height: 200px; overflow-y: auto; font-family: monospace;">
+                                <div id="logContent"></div>
+                            </div>
+                        </div>
+
+                        <div class="result-section mt-4 d-none" id="resultSection">
+                            <h5>拆分结果</h5>
+                            <div class="alert alert-success" id="resultMessage"></div>
+                            
+                            <div class="d-flex justify-content-end mb-3">
+                                <button class="btn btn-success" id="downloadAllBtn">
+                                    下载所有文件（ZIP）
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>供应商</th>
+                                            <th class="text-right">订单数量</th>
+                                            <th class="text-right">交易总额</th>
+                                            <th class="text-right">平台使用费</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resultTable"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-danger mt-3 d-none" id="errorMessage"></div>
+                    </div>
+                    <div class="card-footer text-muted">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>© 2025 Jarvis工具集</span>
+                            <a href="/" class="btn btn-sm btn-outline-secondary">
+                                返回首页
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加隐藏的图片元素用于加载logo -->
+    <div style="display: none;">
+        <img id="logoImage" src="static/img/logo.png" crossorigin="anonymous">
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="static/js/lib/bootstrap.bundle.min.js"></script>
+    <!-- 自定义脚本 -->
+    <script src="static/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+/* 供应商账单拆分工具样式 */
+
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #0d6efd, #0a58ca);
+}
+
+.upload-area {
+    border: 2px dashed #0d6efd;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover, .upload-area.dragover {
+    background-color: #e9f0ff;
+    border-color: #0a58ca;
+}
+
+.progress {
+    height: 10px;
+    border-radius: 5px;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+/* 金额列右对齐 */
+.text-right {
+    text-align: right;
+}
+
+.currency-column {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.btn-download {
+    transition: all 0.2s ease;
+}
+
+.btn-download:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.alert-info {
+    background-color: #e9f6fd;
+    border-color: #b6e0f6;
+    color: #0c5460;
+}
+
+.alert-success {
+    background-color: #e8f6e9;
+    border-color: #b6dfb9;
+    color: #155724;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.result-section {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .card-header h3 {
+        font-size: 1.5rem;
+    }
+    
+    .table {
+        font-size: 0.9rem;
+    }
+}

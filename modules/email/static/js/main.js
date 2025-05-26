@@ -264,6 +264,21 @@ async function handleFileInputChange(event) {
             let unmatchedWord = false;
             let unmatchedExcel = false;
             
+            // 检查是否有重复的邮箱地址
+            let duplicateEmails = false;
+            const emailCounts = {};
+            
+            // 统计所有Excel文件中的邮箱地址出现次数
+            for (const att of excelAttachments) {
+                if (att.email) {
+                    emailCounts[att.email] = (emailCounts[att.email] || 0) + 1;
+                    if (emailCounts[att.email] > 1) {
+                        duplicateEmails = true;
+                        att.error = '存在重复的邮箱地址';
+                    }
+                }
+            }
+            
             // 如果有Word文档和Excel文件，尝试匹配
             if (wordAttachments.length > 0 && excelAttachments.length > 0) {
                 // 尝试匹配每个Word文档与Excel文件
@@ -301,12 +316,21 @@ async function handleFileInputChange(event) {
                     }
                 }
                 
-                // 如果有未匹配的文件，显示警告
-                if (unmatchedWord || unmatchedExcel) {
+                // 如果有未匹配的文件或重复邮箱，显示警告
+                if (duplicateEmails) {
+                    wordExcelWarning.classList.remove('d-none');
+                    showAlert('检测到重复的邮箱地址，无法发送邮件', 'danger');
+                    // 禁用发送按钮
+                    document.querySelector('.btn-send').disabled = true;
+                } else if (unmatchedWord || unmatchedExcel) {
                     wordExcelWarning.classList.remove('d-none');
                     showAlert('部分Word文档和Excel文件未能正确匹配，请检查邮箱地址', 'warning');
+                    // 启用发送按钮
+                    document.querySelector('.btn-send').disabled = false;
                 } else {
                     wordExcelWarning.classList.add('d-none');
+                    // 启用发送按钮
+                    document.querySelector('.btn-send').disabled = false;
                 }
             } else if (wordAttachments.length > 0 && excelAttachments.length === 0) {
                 // 如果只有Word文档没有Excel文件
@@ -323,6 +347,11 @@ async function handleFileInputChange(event) {
             
             // 更新附件列表显示
             updateAttachmentList();
+            
+            // 如果没有附件，确保发送按钮是启用的
+            if (attachmentFiles.length === 0) {
+                document.querySelector('.btn-send').disabled = false;
+            }
         } catch (error) {
             console.error('解析文件时出错:', error);
             showAlert(`解析文件时出错: ${error.message}`, 'danger');
@@ -874,27 +903,88 @@ function updateAttachmentList() {
 
 // 删除附件
 function removeAttachment(index) {
-    const attachment = attachmentFiles[index];
+    if (index >= 0 && index < attachmentFiles.length) {
+        const attachment = attachmentFiles[index];
+        const filesToRemove = [index]; // 要删除的文件索引列表
+        
+        // 如果删除的是Excel文件，同时删除与之匹配的Word文档
+        if (!attachment.is_word && attachment.word_attachment) {
+            const wordIndex = attachmentFiles.findIndex(att => att === attachment.word_attachment);
+            if (wordIndex !== -1) {
+                filesToRemove.push(wordIndex);
+            }
+        }
+        
+        // 如果删除的是Word文档，同时删除与之匹配的Excel文件
+        if (attachment.is_word && attachment.matched_excel) {
+            const excelIndex = attachmentFiles.findIndex(att => att.name === attachment.matched_excel);
+            if (excelIndex !== -1) {
+                filesToRemove.push(excelIndex);
+            }
+        }
+        
+        // 按索引从大到小排序，以便从后向前删除（避免删除时索引变化的问题）
+        filesToRemove.sort((a, b) => b - a);
+        
+        // 删除所有相关附件
+        for (const idx of filesToRemove) {
+            attachmentFiles.splice(idx, 1);
+        }
+        
+        updateAttachmentList();
+        
+        // 重新检查是否有重复邮箱
+        checkDuplicateEmails();
+    }
+}
+
+// 检查重复邮箱地址
+function checkDuplicateEmails() {
+    const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
+    let duplicateEmails = false;
+    const emailCounts = {};
     
-    // 如果是Excel文件且有匹配的Word文档，也需要删除Word文档
-    if (!attachment.is_word && attachment.word_attachment) {
-        const wordIndex = attachmentFiles.findIndex(att => att === attachment.word_attachment);
-        if (wordIndex !== -1) {
-            attachmentFiles.splice(wordIndex, 1);
+    // 清除之前的重复邮箱错误
+    for (const att of attachmentFiles) {
+        if (att.error === '存在重复的邮箱地址') {
+            delete att.error;
         }
     }
     
-    // 如果是Word文档且有匹配的Excel文件，需要移除Excel文件的关联
-    if (attachment.is_word && attachment.matched_excel) {
-        const excelAttachment = attachmentFiles.find(att => att.name === attachment.matched_excel);
-        if (excelAttachment) {
-            delete excelAttachment.word_attachment;
+    // 统计所有Excel文件中的邮箱地址出现次数
+    for (const att of excelAttachments) {
+        if (att.email) {
+            emailCounts[att.email] = (emailCounts[att.email] || 0) + 1;
         }
     }
     
-    // 删除当前附件
-    attachmentFiles.splice(index, 1);
-    updateAttachmentList();
+    // 标记重复的邮箱
+    for (const att of excelAttachments) {
+        if (att.email && emailCounts[att.email] > 1) {
+            duplicateEmails = true;
+            att.error = '存在重复的邮箱地址';
+        }
+    }
+    
+    // 更新UI
+    if (duplicateEmails) {
+        document.getElementById('wordExcelWarning').classList.remove('d-none');
+        showAlert('检测到重复的邮箱地址，无法发送邮件', 'danger');
+        document.querySelector('.btn-send').disabled = true;
+    } else {
+        // 检查是否有其他警告
+        const unmatchedWord = attachmentFiles.some(att => att.is_word && att.error === '找不到匹配的Excel文件');
+        const unmatchedExcel = attachmentFiles.some(att => !att.is_word && att.warning === '没有匹配的Word文档');
+        
+        if (unmatchedWord || unmatchedExcel) {
+            document.getElementById('wordExcelWarning').classList.remove('d-none');
+            showAlert('部分Word文档和Excel文件未能正确匹配，请检查邮箱地址', 'warning');
+        } else {
+            document.getElementById('wordExcelWarning').classList.add('d-none');
+        }
+        
+        document.querySelector('.btn-send').disabled = false;
+    }
 }
 
 // 清空附件列表
@@ -902,12 +992,21 @@ function clearAttachments() {
     attachmentFiles = [];
     updateAttachmentList();
     
-    // 清空详细结果
-    const detailedResults = document.getElementById('detailedResults');
-    detailedResults.classList.add('d-none');
+    // 清除文件输入框
+    const fileInput = document.getElementById('attachmentInput');
+    if (fileInput) {
+        fileInput.value = '';
+    }
     
-    // 重置发送结果
-    lastSendResults = [];
+    // 隐藏警告
+    document.getElementById('fileTypeWarning').classList.add('d-none');
+    document.getElementById('wordExcelWarning').classList.add('d-none');
+    
+    // 启用发送按钮
+    document.querySelector('.btn-send').disabled = false;
+    
+    // 重新检查是否有重复邮箱（实际上清空后应该没有重复，但为了保持一致性还是调用一下）
+    checkDuplicateEmails();
 }
 
 // 重发单个失败邮件
@@ -1282,15 +1381,38 @@ function showLoading(show, message = '正在发送邮件，请稍候...') {
 
 // 显示提示信息
 function showAlert(message, type) {
-    const resultArea = document.getElementById('resultArea');
-    resultArea.textContent = message;
-    resultArea.className = `alert alert-${type}`;
-    resultArea.classList.remove('d-none');
+    // 移除旧的提示元素
+    const oldToasts = document.querySelectorAll('.alert-toast');
+    oldToasts.forEach(toast => {
+        // 添加消失动画
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        // 动画完成后移除元素
+        setTimeout(() => toast.remove(), 300);
+    });
     
-    // 5秒后自动隐藏成功消息
-    if (type === 'success') {
-        setTimeout(() => {
-            resultArea.classList.add('d-none');
-        }, 5000);
-    }
+    // 创建新的提示元素
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-toast`;
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <div class="me-3">
+                ${type === 'success' ? '<i class="bi bi-check-circle-fill"></i>' : ''}
+                ${type === 'warning' ? '<i class="bi bi-exclamation-triangle-fill"></i>' : ''}
+                ${type === 'danger' ? '<i class="bi bi-x-circle-fill"></i>' : ''}
+                ${type === 'info' ? '<i class="bi bi-info-circle-fill"></i>' : ''}
+            </div>
+            <div>${message}</div>
+        </div>
+    `;
+    
+    // 添加到文档中
+    document.body.appendChild(toast);
+    
+    // 设置定时器移除提示
+    setTimeout(() => {
+        // 添加消失动画
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        // 动画完成后移除元素
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
 }
