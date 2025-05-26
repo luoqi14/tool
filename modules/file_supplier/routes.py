@@ -16,8 +16,8 @@ module_path = os.path.dirname(os.path.abspath(__file__))
 file_supplier_bp = Blueprint("file_supplier", __name__, 
                           url_prefix="/file/supplier",
                           template_folder=module_path,
-                          static_folder=os.path.join(module_path, "static"),
-                          static_url_path="/static")
+                          static_folder=module_path,
+                          static_url_path="")
 
 @file_supplier_bp.route("/")
 def index():
