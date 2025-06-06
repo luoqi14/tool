@@ -10,15 +10,20 @@ import argparse
 from modules.email.routes import email_bp
 from modules.file_ysm.routes import file_ysm_bp
 from modules.file_supplier.routes import file_supplier_bp
+from modules.image_recognition.routes import image_recognition_bp
 
 # 创建Flask应用
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)  # 启用CORS，允许跨域请求
 
+# 设置最大请求大小为100MB
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+
 # 注册蓝图
 app.register_blueprint(email_bp)
 app.register_blueprint(file_ysm_bp)
 app.register_blueprint(file_supplier_bp)
+app.register_blueprint(image_recognition_bp)
 
 # 根路径显示工具列表页面
 @app.route('/')
@@ -44,6 +49,13 @@ def index():
             'path': '/file/supplier',
             'description': '按供应商拆分线下服务费账单',
             'icon': 'bi-file-earmark-spreadsheet',
+            'image': 'file-tool.png'
+        },
+        {
+            'name': '图像识别工具',
+            'path': '/image/recognition',
+            'description': '使用Gemini AI识别和分析图像',
+            'icon': 'bi-image',
             'image': 'file-tool.png'
         }
         # 未来可以在这里添加更多工具
@@ -72,6 +84,11 @@ def api_index():
                 'name': '供应商账单拆分',
                 'path': '/file/supplier',
                 'description': '按供应商拆分线下服务费账单'
+            },
+            {
+                'name': '图像识别工具',
+                'path': '/image/recognition',
+                'description': '使用Gemini AI识别和分析图像'
             }
         ]
     })

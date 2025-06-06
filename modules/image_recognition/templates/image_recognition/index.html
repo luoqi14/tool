@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像识别工具</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
+    <link rel="stylesheet" href="/image/recognition/static/css/style.css">
+    <style>
+        /* 确保图标正确显示 */
+        .bi {
+            display: inline-block;
+            vertical-align: -0.125em;
+        }
+        .upload-placeholder i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #6610f2;
+            display: inline-block;
+        }
+        .initial-message i {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <main class="container-fluid mt-4">
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">Gemini 图像识别工具</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-end">
+                            <!-- 上传图片区域 -->
+                            <div class="col-md-3">
+                                <div class="image-upload-container" id="dropArea">
+                                    <div class="upload-placeholder" id="uploadPlaceholder">
+                                        <i class="bi bi-cloud-arrow-up"></i>
+                                        <p>点击或拖拽图片</p>
+                                    </div>
+                                    <div class="image-preview" id="imagePreview">
+                                        <img id="previewImg" src="" alt="预览图">
+                                        <button type="button" class="btn btn-sm btn-danger remove-image" id="removeImage">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                    <input type="file" id="imageInput" accept="image/*" class="d-none">
+                                </div>
+                            </div>
+                            
+                            <!-- 提示词区域 -->
+                            <div class="col-md-7">
+                                <label for="promptInput" class="form-label">提示词</label>
+                                <textarea class="form-control" id="promptInput" 
+                                       placeholder="请输入提示词，例如：请描述这张图片中的内容"></textarea>
+                            </div>
+                            
+                            <!-- 识别按钮 -->
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-primary w-100" id="processButton" disabled>
+                                    <i class="bi bi-magic"></i> 识别图片
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 识别结果区域 -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">识别结果</h5>
+                        <div id="status-indicator" class="d-flex align-items-center">
+                            <span class="badge bg-secondary me-2">尚未开始</span>
+                        </div>
+                    </div>
+                    <div class="card-body" style="min-height: 400px;">
+                        <div id="loadingIndicator" class="text-center d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">正在处理图片，请稍候...</p>
+                        </div>
+                        <div id="resultContainer" class="result-container">
+                            <p class="text-muted text-center initial-message">上传图片并点击"识别图片"按钮查看结果</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/image/recognition/static/js/main.js"></script>
+</body>
+</html>
