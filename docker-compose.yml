@@ -12,11 +12,11 @@ services:
     restart: always
     environment:
       - TZ=Asia/Shanghai
-      - HTTP_PROXY=http://host.docker.internal:8118
-      - HTTPS_PROXY=http://host.docker.internal:8118
-      - http_proxy=http://host.docker.internal:8118
-      - https_proxy=http://host.docker.internal:8118
-      - all_proxy=http://host.docker.internal:8118
+      - HTTP_PROXY=http://119.45.19.31:8118
+      - HTTPS_PROXY=http://119.45.19.31:8118
+      - http_proxy=http://119.45.19.31:8118
+      - https_proxy=http://119.45.19.31:8118
+      - all_proxy=http://119.45.19.31:8118
       - NO_PROXY=localhost,127.0.0.1
     volumes:
       # 挂载日志目录，方便查看日志
