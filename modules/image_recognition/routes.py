@@ -6,7 +6,6 @@ import os
 import tempfile
 import json
 from google.genai import Client
-from PIL import Image
 
 # 创建蓝图
 image_recognition_bp = Blueprint('image_recognition', __name__, 
