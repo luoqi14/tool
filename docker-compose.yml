@@ -12,6 +12,9 @@ services:
     restart: always
     environment:
       - TZ=Asia/Shanghai
+      - HTTP_PROXY=http://host.docker.internal:7890
+      - HTTPS_PROXY=http://host.docker.internal:7890
+      - NO_PROXY=localhost,127.0.0.1
     volumes:
       # 挂载日志目录，方便查看日志
       - ./logs:/app/logs
