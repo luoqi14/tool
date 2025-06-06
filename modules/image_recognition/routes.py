@@ -15,6 +15,18 @@ image_recognition_bp = Blueprint('image_recognition', __name__,
 
 # 配置Gemini API
 API_KEY = "AIzaSyCgxs1UF3qv0d2AFm9Opl1vwroYIlOzW1g"
+
+# 配置代理
+import os
+
+# 使用环境变量设置代理
+# os.environ['HTTP_PROXY'] = 'http://127.0.0.1:1087'
+# os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:1087'
+# os.environ['ALL_PROXY'] = 'http://127.0.0.1:1087'
+# os.environ['http_proxy'] = 'http://127.0.0.1:1087'
+# os.environ['https_proxy'] = 'http://127.0.0.1:1087'
+# os.environ['all_proxy'] = 'http://127.0.0.1:1087'
+
 # 创建Gemini客户端
 genai_client = Client(api_key=API_KEY)
 
