@@ -3,14 +3,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropArea = document.getElementById('dropArea');
     const imageInput = document.getElementById('imageInput');
     const uploadPlaceholder = document.getElementById('uploadPlaceholder');
-    const imagePreview = document.getElementById('imagePreview');
-    const previewImg = document.getElementById('previewImg');
-    const removeImage = document.getElementById('removeImage');
+    const imagePreviews = document.getElementById('imagePreviews');
     const processButton = document.getElementById('processButton');
     const promptInput = document.getElementById('promptInput');
     const resultContainer = document.getElementById('resultContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const statusIndicator = document.getElementById('status-indicator');
+    
+    // 存储上传的图片文件
+    let uploadedFiles = [];
     
     // 设置默认提示词
     promptInput.value = `识别图中文字，生成三份内容：原样输出：再json结构化输出；最后按我给的字段json结构化输出：
@@ -34,10 +35,13 @@ document.addEventListener('DOMContentLoaded', function() {
     如果识别到值就填充，否则为null`;
     
     // 点击上传区域触发文件选择
-    dropArea.addEventListener('click', function() {
-        if (!imageInput.files[0]) {
-            imageInput.click();
-        }
+    uploadPlaceholder.addEventListener('click', function() {
+        imageInput.click();
+    });
+    
+    // 添加更多图片按钮点击
+    document.getElementById('addMoreImages').addEventListener('click', function() {
+        imageInput.click();
     });
     
     // 处理文件选择
@@ -45,32 +49,35 @@ document.addEventListener('DOMContentLoaded', function() {
         handleFiles(this.files);
     });
     
+    // 创建拖放区域
+    const uploadContainer = document.querySelector('.image-upload-container');
+    
     // 处理拖放 - 拖动进入
-    dropArea.addEventListener('dragenter', function(e) {
+    uploadContainer.addEventListener('dragenter', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        dropArea.classList.add('drag-over');
+        uploadContainer.classList.add('drag-over');
     });
     
     // 处理拖放 - 拖动经过
-    dropArea.addEventListener('dragover', function(e) {
+    uploadContainer.addEventListener('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        dropArea.classList.add('drag-over');
+        uploadContainer.classList.add('drag-over');
     });
     
     // 处理拖放 - 拖动离开
-    dropArea.addEventListener('dragleave', function(e) {
+    uploadContainer.addEventListener('dragleave', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        dropArea.classList.remove('drag-over');
+        uploadContainer.classList.remove('drag-over');
     });
     
     // 处理拖放 - 放置文件
-    dropArea.addEventListener('drop', function(e) {
+    uploadContainer.addEventListener('drop', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        dropArea.classList.remove('drag-over');
+        uploadContainer.classList.remove('drag-over');
         
         const dt = e.dataTransfer;
         const files = dt.files;
@@ -82,41 +89,94 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleFiles(files) {
         if (files.length === 0) return;
         
-        const file = files[0];
-        
-        // 检查是否为图片
-        if (!file.type.match('image.*')) {
-            alert('请上传图片文件');
-            return;
+        // 清空之前的预览
+        if (uploadedFiles.length === 0) {
+            imagePreviews.innerHTML = '';
         }
         
-        // 直接创建URL显示预览
-        const objectUrl = URL.createObjectURL(file);
-        previewImg.src = objectUrl;
-        uploadPlaceholder.style.display = 'none';
-        imagePreview.style.display = 'block';
-        processButton.disabled = false;
+        // 处理每个文件
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            
+            // 检查是否为图片
+            if (!file.type.match('image.*')) {
+                continue; // 跳过非图片文件
+            }
+            
+            // 将文件添加到上传列表
+            uploadedFiles.push(file);
+            
+            // 创建预览元素
+            const previewItem = document.createElement('div');
+            previewItem.className = 'image-preview-item';
+            previewItem.dataset.index = uploadedFiles.length - 1;
+            
+            // 创建图片预览
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            previewItem.appendChild(img);
+            
+            // 创建删除按钮
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-sm btn-danger remove-image';
+            removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+            removeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const index = parseInt(previewItem.dataset.index);
+                // 从数组中移除文件
+                uploadedFiles.splice(index, 1);
+                // 移除预览元素
+                previewItem.remove();
+                // 更新其他预览元素的索引
+                updatePreviewIndices();
+                // 如果没有图片，显示占位符
+                if (uploadedFiles.length === 0) {
+                    uploadPlaceholder.style.display = 'block';
+                    processButton.disabled = true;
+                }
+            });
+            previewItem.appendChild(removeBtn);
+            
+            // 添加到预览区域
+            imagePreviews.appendChild(previewItem);
+        }
+        
+        // 隐藏占位符，启用处理按钮
+        if (uploadedFiles.length > 0) {
+            uploadPlaceholder.style.display = 'none';
+            processButton.disabled = false;
+        }
     }
     
-    // 移除图片
-    removeImage.addEventListener('click', function(e) {
-        e.stopPropagation();
-        previewImg.src = '';
+    // 更新预览元素的索引
+    function updatePreviewIndices() {
+        const previewItems = imagePreviews.querySelectorAll('.image-preview-item');
+        previewItems.forEach((item, index) => {
+            item.dataset.index = index;
+        });
+    }
+    
+    // 清空所有图片
+    function clearAllImages() {
+        // 释放所有URL对象
+        const previewItems = imagePreviews.querySelectorAll('.image-preview-item img');
+        previewItems.forEach(img => {
+            if (img.src) {
+                URL.revokeObjectURL(img.src);
+            }
+        });
+        
+        // 清空预览区域
+        imagePreviews.innerHTML = '';
         uploadPlaceholder.style.display = 'block';
-        imagePreview.style.display = 'none';
         processButton.disabled = true;
         imageInput.value = '';
-        resultContainer.innerHTML = '';
-        
-        // 释放之前创建的URL对象
-        if (previewImg.src) {
-            URL.revokeObjectURL(previewImg.src);
-        }
-    });
+        uploadedFiles = [];
+    }
     
     // 处理图片按钮点击
     processButton.addEventListener('click', function() {
-        if (!imageInput.files[0]) {
+        if (uploadedFiles.length === 0) {
             alert('请先上传图片');
             return;
         }
@@ -143,11 +203,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const streamingResult = document.getElementById('streaming-result');
         
         // 获取提示词
-        const prompt = promptInput.value || '请描述这张图片';
+        const prompt = promptInput.value || '请描述这些图片';
         
         // 使用FormData直接发送文件
         const formData = new FormData();
-        formData.append('file', imageInput.files[0]);
+        
+        // 添加所有图片文件
+        uploadedFiles.forEach((file, index) => {
+            formData.append('files', file);
+        });
+        
         formData.append('prompt', prompt);
         
         // 使用fetch API的流式处理
@@ -198,8 +263,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                         // 更新状态
                                         updateStatus('completed');
                                     } else if (data.text) {
-                                        // 添加文本
-                                        streamingResult.innerHTML += formatResult(data.text);
+                                        // 收集完整的文本，然后使用 Markdown 解析
+                                        // 如果还没有存储完整文本，创建一个
+                                        if (!streamingResult.fullText) {
+                                            streamingResult.fullText = '';
+                                        }
+                                        
+                                        // 添加新文本
+                                        streamingResult.fullText += data.text;
+                                        
+                                        // 使用 Markdown 解析完整文本
+                                        streamingResult.innerHTML = formatResult(streamingResult.fullText);
+                                        
                                         // 滚动到底部
                                         resultContainer.scrollTop = resultContainer.scrollHeight;
                                     }
@@ -271,13 +346,21 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
     }
     
-    // 格式化结果文本，保留换行
+    // 格式化结果文本，使用 Markdown 解析
     function formatResult(text) {
         if (!text) return '';
-        return text
-            .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        try {
+            // 使用 marked.js 解析 Markdown
+            return marked.parse(text);
+        } catch (e) {
+            console.error('Markdown 解析错误:', e);
+            // 降级处理：如果 marked 解析失败，回退到基本的 HTML 转换
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        }
     }
     
     // 更新状态指示器

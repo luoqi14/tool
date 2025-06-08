@@ -16,24 +16,11 @@ image_recognition_bp = Blueprint('image_recognition', __name__,
 # 配置Gemini API
 API_KEY = "AIzaSyCgxs1UF3qv0d2AFm9Opl1vwroYIlOzW1g"
 
-# 配置代理
-import os
-
-# 使用环境变量设置代理
-# os.environ['HTTP_PROXY'] = 'http://127.0.0.1:1087'
-# os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:1087'
-# os.environ['ALL_PROXY'] = 'http://127.0.0.1:1087'
-# os.environ['http_proxy'] = 'http://127.0.0.1:1087'
-# os.environ['https_proxy'] = 'http://127.0.0.1:1087'
-# os.environ['all_proxy'] = 'http://127.0.0.1:1087'
-
 # 创建Gemini客户端
 genai_client = Client(api_key=API_KEY)
 
 # 设置模型
 MODEL_NAME = "gemini-2.5-flash-preview-05-20"
-
-# 移除了标注相关函数
 
 @image_recognition_bp.route('/')
 def index():
@@ -42,34 +29,43 @@ def index():
 
 @image_recognition_bp.route('/process', methods=['POST'])
 def process_image():
-    """处理上传的图片并调用Gemini API，使用流式输出"""
+    """处理上传的多张图片并调用Gemini API，使用流式输出"""
     try:
         # 检查是否有文件上传
-        if 'file' in request.files:
-            # 直接处理上传的文件
-            file = request.files['file']
-            prompt = request.form.get('prompt', '请描述这张图片')
+        if 'files' in request.files:
+            # 获取所有上传的文件
+            files = request.files.getlist('files')
+            prompt = request.form.get('prompt', '请描述这些图片')
             
-            if file and file.filename:
-                # 创建临时文件
-                temp_file_path = None
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp:
-                    temp_file_path = temp.name
-                    file.save(temp_file_path)
+            if files and len(files) > 0:
+                # 存储所有临时文件路径
+                temp_file_paths = []
+                uploaded_files = []
                 
                 try:
-                    # 使用最新的Gemini API上传文件方式
-                    uploaded_file = genai_client.files.upload(file=temp_file_path)
+                    # 处理每个文件
+                    for file in files:
+                        if file and file.filename:
+                            # 创建临时文件
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp:
+                                temp_file_path = temp.name
+                                file.save(temp_file_path)
+                                temp_file_paths.append(temp_file_path)
+                                
+                                # 使用最新的Gemini API上传文件
+                                uploaded_file = genai_client.files.upload(file=temp_file_path)
+                                uploaded_files.append(uploaded_file)
                     
                     # 返回流式响应
-                    return stream_response(MODEL_NAME, prompt, uploaded_file, temp_file_path)
+                    return stream_response(MODEL_NAME, prompt, uploaded_files, temp_file_paths)
                 except Exception as e:
                     # 清理临时文件
-                    if temp_file_path and os.path.exists(temp_file_path):
-                        os.unlink(temp_file_path)
+                    for path in temp_file_paths:
+                        if path and os.path.exists(path):
+                            os.unlink(path)
                     
                     # 删除上传到Gemini的文件
-                    if 'uploaded_file' in locals():
+                    for uploaded_file in uploaded_files:
                         genai_client.files.delete(name=uploaded_file.name)
                     
                     # 重新抛出异常
@@ -91,15 +87,19 @@ def process_image():
         }), 500
 
 
-def stream_response(model_name, prompt, uploaded_file, temp_file_path):
-    """流式输出响应"""
+def stream_response(model_name, prompt, uploaded_files, temp_file_paths):
+    """流式输出响应，支持多图处理"""
     @stream_with_context
     def generate():
         try:
+            # 准备内容列表，包含提示词和所有上传的文件
+            contents = [prompt]
+            contents.extend(uploaded_files)
+            
             # 使用流式生成内容
             response = genai_client.models.generate_content_stream(
                 model=model_name,
-                contents=[prompt, uploaded_file]
+                contents=contents
             )
             
             # 流式返回数据
@@ -111,10 +111,12 @@ def stream_response(model_name, prompt, uploaded_file, temp_file_path):
             yield f"data: {json.dumps({'done': True})}\n\n"
         finally:
             # 清理临时文件
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
+            for path in temp_file_paths:
+                if path and os.path.exists(path):
+                    os.unlink(path)
             
             # 删除上传到Gemini的文件
-            genai_client.files.delete(name=uploaded_file.name)
+            for uploaded_file in uploaded_files:
+                genai_client.files.delete(name=uploaded_file.name)
     
     return Response(generate(), mimetype='text/event-stream')
