@@ -10,25 +10,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadingIndicator = document.getElementById('loadingIndicator');
     const statusIndicator = document.getElementById('status-indicator');
     
-    // 全局变量，存储识别结果文本
-    let resultText = '';
-    
     // 存储上传的图片文件
     let uploadedFiles = [];
     
     // 设置默认提示词
-    promptInput.value = `请识别图片中的所有文字，并按以下顺序生成三份输出，要求严格按照以下格式：
+    promptInput.value = `请识别图片中的所有文字，并按以下顺序生成三份输出：
 
-### RAW_START ###
-(在这两行标记之间，放 OCR 识别到的完整原始文本)
-### RAW_END ###
+1. 【原文输出】  
+   原样返回 OCR 识别到的完整文本。
 
-### GENERIC_JSON_START ###
-(在这两行标记之间，放一个"通用"格式的 JSON 对象，键名可根据识别到的内容自定义，所有识别到的项都要包含)
-### GENERIC_JSON_END ###
+2. 【通用 JSON 输出】  
+   将识别结果整理成键值对格式的 JSON，键名可根据识别到的内容自定义，所有识别到的项都要包含。
 
-### STRUCTURED_JSON_START ###
-(在这两行标记之间，放如下模板的 JSON 对象，字段顺序与模板一致，未识别到的值填 null，禁止多余字段或注释)
+3. 【指定字段 JSON 输出】  
+   严格按照下面的模板生成一个 JSON 对象，字段顺序与模板一致，未识别到的值填 null，禁止多余字段或注释：
 {
   "productName": null,             // 商品名称
   "brandName": null,               // 品牌名称
@@ -45,8 +40,7 @@ document.addEventListener('DOMContentLoaded', function() {
   "maintaining": null,             // 维护/保养
   "productDesc": null,             // 商品介绍
   "sterilization": null            // 消毒灭菌
-}
-### STRUCTURED_JSON_END ###`;
+}`;
     
     // 点击上传区域触发文件选择
     uploadPlaceholder.addEventListener('click', function() {
@@ -195,10 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 重置全局结果文本
-        resultText = '';
-        console.log('重置结果文本');
-        
         // 隐藏下载按钮
         document.getElementById('downloadResults').style.display = 'none';
         
@@ -290,8 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             streamingResult.fullText = '';
                                         }
                                         
-                                        // 添加新文本到全局变量和流式结果
-                                        resultText += data.text; // 更新全局变量
+                                        // 添加新文本
                                         streamingResult.fullText += data.text;
                                         
                                         // 使用 Markdown 解析完整文本
@@ -299,8 +288,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                         
                                         // 滚动到底部
                                         resultContainer.scrollTop = resultContainer.scrollHeight;
-                                        
-                                        console.log('累积文本长度:', resultText.length);
                                     }
                                 } catch (e) {
                                     console.error('解析SSE数据出错:', e);
@@ -406,173 +393,42 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'completed':
                 statusBadge.classList.add('bg-success', 'completed');
                 statusBadge.textContent = '处理完成';
-                // 显示下载按钮，仅当有结果文本时
-                if (resultText && resultText.trim() !== '') {
-                    document.getElementById('downloadResults').style.display = 'block';
-                    console.log('识别完成，显示下载按钮，文本长度:', resultText.length);
-                } else {
-                    console.warn('识别完成但没有结果文本');
+                // 显示下载按钮
+                let resultText = ''; // 存储识别结果文本
+                let source = null;             document.getElementById('downloadResults').style.display = 'block';
                 }
                 break;
             case 'error':
                 statusBadge.classList.add('bg-danger', 'error');
                 statusBadge.textContent = '处理错误';
-                break;
-        }
-    }
-    
-    // 解析结果内容，提取三份内容
-    function parseResultContent(text) {
-        const result = {
-            original: null,
-            general: null,
-            specified: null
-        };
-        
-        try {
-            console.log('开始解析结果文本，长度:', text.length);
-            
-            // 尝试提取原文输出
-            const rawRegex = /### RAW_START ###[\s\S]*?### RAW_END ###/i;
-            const rawMatch = text.match(rawRegex);
-            if (rawMatch) {
-                // 去除标记行，只保留内容
-                result.original = rawMatch[0]
-                    .replace(/### RAW_START ###/i, '')
-                    .replace(/### RAW_END ###/i, '')
-                    .trim();
-                console.log('提取到原文输出:', result.original.substring(0, 50) + '...');
-            }
-            
-            // 尝试提取通用 JSON 输出
-            const genericRegex = /### GENERIC_JSON_START ###[\s\S]*?### GENERIC_JSON_END ###/i;
-            const genericMatch = text.match(genericRegex);
-            if (genericMatch) {
-                // 去除标记行，只保留内容
-                const genericText = genericMatch[0]
-                    .replace(/### GENERIC_JSON_START ###/i, '')
-                    .replace(/### GENERIC_JSON_END ###/i, '')
-                    .trim();
-                
-                // 尝试提取完整的JSON对象
-                try {
-                    // 先尝试使用JSON.parse直接解析整个文本
-                    const trimmedText = genericText.trim();
-                    if (trimmedText.startsWith('{') && trimmedText.endsWith('}')) {
-                        // 可能是完整的JSON对象
-                        try {
-                            JSON.parse(trimmedText);
-                            result.general = trimmedText;
-                            console.log('直接解析到完整JSON对象，长度:', trimmedText.length);
-                        } catch {
-                            // 如果不是有效的JSON，使用正则表达式提取
-                            // 使用平衡括号的方式来匹配完整的JSON对象
-                            const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                            const matches = genericText.match(jsonRegex);
-                            if (matches && matches.length > 0) {
-                                // 选择最长的匹配项，可能是最完整的JSON
-                                let longestMatch = matches[0];
-                                for (let i = 1; i < matches.length; i++) {
-                                    if (matches[i].length > longestMatch.length) {
-                                        longestMatch = matches[i];
-                                    }
-                                }
-                                result.general = longestMatch;
-                                console.log('使用正则表达式提取到JSON，长度:', longestMatch.length);
-                            } else {
-                                result.general = genericText;
-                                console.log('无法使用正则表达式提取JSON，使用完整文本');
-                            }
-                        }
-                    } else {
-                        // 使用平衡括号的方式来匹配完整的JSON对象
-                        const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                        const matches = genericText.match(jsonRegex);
-                        if (matches && matches.length > 0) {
-                            // 选择最长的匹配项，可能是最完整的JSON
-                            let longestMatch = matches[0];
-                            for (let i = 1; i < matches.length; i++) {
-                                if (matches[i].length > longestMatch.length) {
-                                    longestMatch = matches[i];
-                                }
-                            }
-                            result.general = longestMatch;
-                            console.log('使用正则表达式提取到JSON，长度:', longestMatch.length);
-                        } else {
-                            result.general = genericText;
-                            console.log('无法使用正则表达式提取JSON，使用完整文本');
-                        }
-                    }
-                } catch (e) {
-                    console.error('提取JSON时出错:', e);
-                    result.general = genericText;
-                    console.log('提取JSON出错，使用完整通用文本');
+{{ ... }}
+                    const generalText = generalMatch[0].replace(/(?:通用 JSON 输出|【通用 JSON 输出】)\s*/i, '').trim();
+                    // 尝试提取JSON部分
+                    const jsonMatch = generalText.match(/{[\s\S]*?}/i);
+                    if (jsonMatch) {
+                        result.general = jsonMatch[0];
+                    // 将文本添加到结果容器
+                    resultText += data.text; // 累加文本到resultText变量
+                    resultContainer.innerHTML = marked.parse(data.text);
+                }    }
+                    console.log('提取到通用JSON:', result.general.substring(0, 50) + '...');
                 }
             }
             
-            // 尝试提取结构化 JSON 输出
-            const structuredRegex = /### STRUCTURED_JSON_START ###[\s\S]*?### STRUCTURED_JSON_END ###/i;
-            const structuredMatch = text.match(structuredRegex);
-            if (structuredMatch) {
-                // 去除标记行，只保留内容
-                const structuredText = structuredMatch[0]
-                    .replace(/### STRUCTURED_JSON_START ###/i, '')
-                    .replace(/### STRUCTURED_JSON_END ###/i, '')
-                    .trim();
-                
-                // 尝试提取完整的JSON对象
-                try {
-                    // 先尝试使用JSON.parse直接解析整个文本
-                    const trimmedText = structuredText.trim();
-                    if (trimmedText.startsWith('{') && trimmedText.endsWith('}')) {
-                        // 可能是完整的JSON对象
-                        try {
-                            JSON.parse(trimmedText);
-                            result.specified = trimmedText;
-                            console.log('直接解析到完整结构化JSON对象，长度:', trimmedText.length);
-                        } catch {
-                            // 如果不是有效的JSON，使用正则表达式提取
-                            // 使用平衡括号的方式来匹配完整的JSON对象
-                            const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                            const matches = structuredText.match(jsonRegex);
-                            if (matches && matches.length > 0) {
-                                // 选择最长的匹配项，可能是最完整的JSON
-                                let longestMatch = matches[0];
-                                for (let i = 1; i < matches.length; i++) {
-                                    if (matches[i].length > longestMatch.length) {
-                                        longestMatch = matches[i];
-                                    }
-                                }
-                                result.specified = longestMatch;
-                                console.log('使用正则表达式提取到结构化JSON，长度:', longestMatch.length);
-                            } else {
-                                result.specified = structuredText;
-                                console.log('无法使用正则表达式提取结构化JSON，使用完整文本');
-                            }
-                        }
+            // 尝试提取指定字段 JSON 输出
+{{ ... }}
+                const specifiedRegex = /(?:指定字段 JSON 输出|【指定字段 JSON 输出】)[\s\S]*/i;
+                const specifiedMatch = text.match(specifiedRegex);
+                if (specifiedMatch) {
+                    const specifiedText = specifiedMatch[0].replace(/(?:指定字段 JSON 输出|【指定字段 JSON 输出】)\s*/i, '').trim();
+                    // 尝试提取JSON部分
+                    const jsonMatch = specifiedText.match(/{[\s\S]*?}/i);
+                    if (jsonMatch) {
+                        result.specified = jsonMatch[0];
                     } else {
-                        // 使用平衡括号的方式来匹配完整的JSON对象
-                        const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                        const matches = structuredText.match(jsonRegex);
-                        if (matches && matches.length > 0) {
-                            // 选择最长的匹配项，可能是最完整的JSON
-                            let longestMatch = matches[0];
-                            for (let i = 1; i < matches.length; i++) {
-                                if (matches[i].length > longestMatch.length) {
-                                    longestMatch = matches[i];
-                                }
-                            }
-                            result.specified = longestMatch;
-                            console.log('使用正则表达式提取到结构化JSON，长度:', longestMatch.length);
-                        } else {
-                            result.specified = structuredText;
-                            console.log('无法使用正则表达式提取结构化JSON，使用完整文本');
-                        }
+                        result.specified = specifiedText;
                     }
-                } catch (e) {
-                    console.error('提取结构化JSON时出错:', e);
-                    result.specified = structuredText;
-                    console.log('提取结构化JSON出错，使用完整结构化文本');
+                    console.log('提取到指定字段JSON:', result.specified.substring(0, 50) + '...');
                 }
             }
             
@@ -653,48 +509,12 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('添加原文.txt文件');
         
         // 添加通用JSON文件
-        // 确保完整的JSON内容被添加到文件中
-        try {
-            // 尝试格式化JSON以确保完整性
-            let generalJson = parts.general || '{}';
-            if (typeof generalJson === 'string') {
-                // 尝试解析然后重新格式化，以确保完整的JSON
-                try {
-                    const parsedJson = JSON.parse(generalJson);
-                    generalJson = JSON.stringify(parsedJson, null, 2);
-                    console.log('通用JSON格式化成功');
-                } catch (e) {
-                    console.warn('通用JSON格式化失败，使用原始文本:', e);
-                }
-            }
-            folder.file('通用.json', generalJson);
-            console.log('添加通用.json文件，内容长度:', generalJson.length);
-        } catch (e) {
-            console.error('添加通用JSON文件失败:', e);
-            folder.file('通用.json', '{}');
-        }
+        folder.file('通用.json', parts.general || '{}');
+        console.log('添加通用.json文件');
         
         // 添加指定字段JSON文件
-        // 确保完整的JSON内容被添加到文件中
-        try {
-            // 尝试格式化JSON以确保完整性
-            let specifiedJson = parts.specified || '{}';
-            if (typeof specifiedJson === 'string') {
-                // 尝试解析然后重新格式化，以确保完整的JSON
-                try {
-                    const parsedJson = JSON.parse(specifiedJson);
-                    specifiedJson = JSON.stringify(parsedJson, null, 2);
-                    console.log('指定字段JSON格式化成功');
-                } catch (e) {
-                    console.warn('指定字段JSON格式化失败，使用原始文本:', e);
-                }
-            }
-            folder.file('指定.json', specifiedJson);
-            console.log('添加指定.json文件，内容长度:', specifiedJson.length);
-        } catch (e) {
-            console.error('添加指定字段JSON文件失败:', e);
-            folder.file('指定.json', '{}');
-        }
+        folder.file('指定.json', parts.specified || '{}');
+        console.log('添加指定.json文件');
         
         // 生成ZIP文件并下载
         console.log('开始生成ZIP文件...');

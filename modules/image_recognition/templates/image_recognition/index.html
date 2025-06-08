@@ -157,14 +157,19 @@
                         </div>
                     </div>
                     <div class="card-body" style="min-height: 400px;">
-                        <div id="loadingIndicator" class="text-center d-none">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">加载中...</span>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div id="loadingIndicator" class="d-none">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <span class="ms-2">正在处理图片，请稍候...</span>
                             </div>
-                            <p class="mt-2">正在处理图片，请稍候...</p>
+                            <button id="downloadResults" class="btn btn-sm btn-success" style="display: none;">
+                                <i class="bi bi-download"></i> 下载结果文件
+                            </button>
                         </div>
-                        <div id="resultContainer" class="result-container">
-                            <p class="text-muted text-center initial-message">上传图片并点击"识别图片"按钮查看结果</p>
+                        <div id="resultContainer" class="result-container markdown-body">
+                            <p class="text-muted text-center initial-message">上传图片并点击“识别图片”按钮查看结果</p>
                         </div>
                     </div>
                 </div>
@@ -175,6 +180,10 @@
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <!-- 添加 Marked.js 用于 Markdown 解析 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 添加 JSZip 用于前端生成ZIP文件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 添加 FileSaver.js 用于保存文件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="/image/recognition/static/js/main.js"></script>
 </body>
 </html>
