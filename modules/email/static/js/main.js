@@ -212,7 +212,8 @@ async function handleFileInputChange(event) {
                             period_range: result.period_range || '', 
                             company: result.company || '', 
                             is_word: isWord,
-                            size: file.size
+                            size: file.size,
+                            filename_without_ext: result.filename_without_ext || ''
                         });
                     } else {
                         // 显示错误
@@ -223,7 +224,8 @@ async function handleFileInputChange(event) {
                             data: base64Data,
                             error: result.message,
                             is_word: isWord,
-                            size: file.size
+                            size: file.size,
+                            filename_without_ext: result.filename_without_ext || ''
                         });
                     }
                 } catch (error) {
@@ -237,113 +239,8 @@ async function handleFileInputChange(event) {
                 }
             }
             
-            // 检查Word文档和Excel文件的匹配
-            // 无论是否上传了Word文件，都进行匹配检查
-            // 获取所有Excel和Word文件
-            const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
-            const wordAttachments = attachmentFiles.filter(att => att.is_word && !att.error);
-            
-            // 重置所有匹配状态
-            for (const att of attachmentFiles) {
-                if (!att.is_word && att.word_attachment) {
-                    delete att.word_attachment;
-                }
-                if (att.is_word && att.matched_excel) {
-                    delete att.matched_excel;
-                }
-                // 清除匹配相关的错误和警告
-                if (att.error === '找不到匹配的Excel文件') {
-                    delete att.error;
-                }
-                if (att.warning === '没有匹配的Word文档') {
-                    delete att.warning;
-                }
-            }
-            
-            // 检查是否有未匹配的Word文档
-            let unmatchedWord = false;
-            let unmatchedExcel = false;
-            
-            // 检查是否有重复的邮箱地址
-            let duplicateEmails = false;
-            const emailCounts = {};
-            
-            // 统计所有Excel文件中的邮箱地址出现次数
-            for (const att of excelAttachments) {
-                if (att.email) {
-                    emailCounts[att.email] = (emailCounts[att.email] || 0) + 1;
-                    if (emailCounts[att.email] > 1) {
-                        duplicateEmails = true;
-                        att.error = '存在重复的邮箱地址';
-                    }
-                }
-            }
-            
-            // 如果有Word文档和Excel文件，尝试匹配
-            if (wordAttachments.length > 0 && excelAttachments.length > 0) {
-                // 尝试匹配每个Word文档与Excel文件
-                for (const wordAtt of wordAttachments) {
-                    // 如果没有邮箱地址，标记为未匹配
-                    if (!wordAtt.email) {
-                        unmatchedWord = true;
-                        wordAtt.error = '无法从文档中提取邮箱地址';
-                        continue;
-                    }
-                    
-                    // 查找匹配的Excel文件
-                    const matchedExcel = excelAttachments.find(excel => excel.email === wordAtt.email);
-                    
-                    if (matchedExcel) {
-                        // 建立双向关联
-                        wordAtt.matched_excel = matchedExcel.name;
-                        matchedExcel.word_attachment = wordAtt;
-                        // 清除任何错误标记
-                        delete wordAtt.error;
-                    } else {
-                        unmatchedWord = true;
-                        wordAtt.error = '找不到匹配的Excel文件';
-                    }
-                }
-                
-                // 检查是否有未匹配的Excel文件
-                for (const excelAtt of excelAttachments) {
-                    if (!excelAtt.word_attachment) {
-                        unmatchedExcel = true;
-                        excelAtt.warning = '没有匹配的Word文档';
-                    } else {
-                        // 清除任何警告标记
-                        delete excelAtt.warning;
-                    }
-                }
-                
-                // 如果有未匹配的文件或重复邮箱，显示警告
-                if (duplicateEmails) {
-                    wordExcelWarning.classList.remove('d-none');
-                    showAlert('检测到重复的邮箱地址，无法发送邮件', 'danger');
-                    // 禁用发送按钮
-                    document.querySelector('.btn-send').disabled = true;
-                } else if (unmatchedWord || unmatchedExcel) {
-                    wordExcelWarning.classList.remove('d-none');
-                    showAlert('部分Word文档和Excel文件未能正确匹配，请检查邮箱地址', 'warning');
-                    // 启用发送按钮
-                    document.querySelector('.btn-send').disabled = false;
-                } else {
-                    wordExcelWarning.classList.add('d-none');
-                    // 启用发送按钮
-                    document.querySelector('.btn-send').disabled = false;
-                }
-            } else if (wordAttachments.length > 0 && excelAttachments.length === 0) {
-                // 如果只有Word文档没有Excel文件
-                for (const wordAtt of wordAttachments) {
-                    if (wordAtt.email) {
-                        wordAtt.error = '找不到匹配的Excel文件';
-                    } else {
-                        wordAtt.error = '无法从文档中提取邮箱地址';
-                    }
-                }
-                wordExcelWarning.classList.remove('d-none');
-                showAlert('没有匹配的Excel文件，请上传相应的Excel文件', 'warning');
-            }
+            // 每次上传文件后重新检查所有文件的匹配关系
+            matchFilesAndUpdateUI();
             
             // 更新附件列表显示
             updateAttachmentList();
@@ -597,29 +494,8 @@ function updateAttachmentList() {
             return;
         }
         
-        // 再次尝试匹配 - 这是为了处理先上传Word再上传Excel的情况
-        if (attachment.email && !attachment.word_attachment) {
-            // 查找匹配的Word文档
-            const wordAttachments = attachmentFiles.filter(att => att.is_word && !att.error);
-            const matchedWord = wordAttachments.find(word => word.email === attachment.email);
-            
-            if (matchedWord) {
-                // 建立双向关联
-                matchedWord.matched_excel = attachment.name;
-                attachment.word_attachment = matchedWord;
-                // 清除Word文档的错误
-                if (matchedWord.error === '找不到匹配的Excel文件') {
-                    delete matchedWord.error;
-                }
-                // 清除警告
-                delete attachment.warning;
-                // 隐藏警告信息
-                const wordExcelWarning = document.getElementById('wordExcelWarning');
-                if (!attachmentFiles.some(att => (att.error && att.error.includes('匹配')) || (att.warning && att.warning.includes('匹配')))) {
-                    wordExcelWarning.classList.add('d-none');
-                }
-            }
-        }
+        // 不再尝试基于邮箱匹配，只使用文件名匹配逻辑
+        // 匹配逻辑已经在matchFilesAndUpdateUI函数中实现
         
         const fileItem = document.createElement('div');
         fileItem.className = 'attachment-item';
@@ -802,29 +678,8 @@ function updateAttachmentList() {
             return;
         }
         
-        // 再次尝试匹配 - 这是为了处理先上传Word再上传Excel的情况
-        if (attachment.email && !attachment.matched_excel && !attachment.error) {
-            // 查找匹配的Excel文件
-            const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
-            const matchedExcel = excelAttachments.find(excel => excel.email === attachment.email);
-            
-            if (matchedExcel) {
-                // 建立双向关联
-                attachment.matched_excel = matchedExcel.name;
-                matchedExcel.word_attachment = attachment;
-                // 清除错误标记
-                delete attachment.error;
-                // 清除Excel文件的警告
-                if (matchedExcel.warning === '没有匹配的Word文档') {
-                    delete matchedExcel.warning;
-                }
-                // 隐藏警告信息
-                const wordExcelWarning = document.getElementById('wordExcelWarning');
-                if (!attachmentFiles.some(att => att.error && att.error.includes('匹配'))) {
-                    wordExcelWarning.classList.add('d-none');
-                }
-            }
-        }
+        // 不再尝试基于邮箱匹配，只使用文件名匹配逻辑
+        // 匹配逻辑已经在matchFilesAndUpdateUI函数中实现
         
         const fileItem = document.createElement('div');
         fileItem.className = 'attachment-item';
@@ -935,56 +790,154 @@ function removeAttachment(index) {
         
         // 重新检查是否有重复邮箱
         checkDuplicateEmails();
+        
+        // 重新匹配文件
+        matchFilesAndUpdateUI();
+        
+        // 重置文件输入框的值，使得用户可以重新上传相同的文件
+        const fileInput = document.getElementById('attachmentInput');
+        if (fileInput) {
+            fileInput.value = '';
+        }
     }
 }
 
-// 检查重复邮箱地址
-function checkDuplicateEmails() {
-    const excelAttachments = attachmentFiles.filter(att => !att.is_word && !att.error);
-    let duplicateEmails = false;
-    const emailCounts = {};
+// 匹配文件并更新UI
+function matchFilesAndUpdateUI() {
+    const wordExcelWarning = document.getElementById('wordExcelWarning');
     
-    // 清除之前的重复邮箱错误
+    // 获取所有Excel和Word文件，不考虑错误状态
+    const excelAttachments = attachmentFiles.filter(att => !att.is_word);
+    const wordAttachments = attachmentFiles.filter(att => att.is_word);
+    
+    // 重置所有匹配状态
     for (const att of attachmentFiles) {
-        if (att.error === '存在重复的邮箱地址') {
+        if (!att.is_word && att.word_attachment) {
+            delete att.word_attachment;
+        }
+        if (att.is_word && att.matched_excel) {
+            delete att.matched_excel;
+        }
+        // 清除匹配相关的错误和警告
+        if (att.error === '找不到匹配的Excel文件') {
             delete att.error;
         }
-    }
-    
-    // 统计所有Excel文件中的邮箱地址出现次数
-    for (const att of excelAttachments) {
-        if (att.email) {
-            emailCounts[att.email] = (emailCounts[att.email] || 0) + 1;
+        if (att.warning === '没有匹配的Word文档') {
+            delete att.warning;
         }
     }
     
-    // 标记重复的邮箱
-    for (const att of excelAttachments) {
-        if (att.email && emailCounts[att.email] > 1) {
-            duplicateEmails = true;
-            att.error = '存在重复的邮箱地址';
-        }
-    }
+    // 检查是否有未匹配的Word文档
+    let unmatchedWord = false;
+    let unmatchedExcel = false;
     
-    // 更新UI
-    if (duplicateEmails) {
-        document.getElementById('wordExcelWarning').classList.remove('d-none');
-        showAlert('检测到重复的邮箱地址，无法发送邮件', 'danger');
-        document.querySelector('.btn-send').disabled = true;
-    } else {
-        // 检查是否有其他警告
-        const unmatchedWord = attachmentFiles.some(att => att.is_word && att.error === '找不到匹配的Excel文件');
-        const unmatchedExcel = attachmentFiles.some(att => !att.is_word && att.warning === '没有匹配的Word文档');
+    // 如果有Word文档和Excel文件，尝试匹配
+    if (wordAttachments.length > 0 && excelAttachments.length > 0) {
+        // 尝试匹配每个Word文档与Excel文件
+        for (const wordAtt of wordAttachments) {
+            // 获取Word文档的文件名（不含扩展名）
+            const wordFilename = wordAtt.filename_without_ext || '';
+            
+            // 如果文件名为空，标记为未匹配
+            if (!wordFilename) {
+                unmatchedWord = true;
+                wordAtt.error = '无法获取文件名';
+                continue;
+            }
+            
+            // 查找匹配的Excel文件（文件名除了最后三个字符外都相同）
+            const matchedExcel = excelAttachments.find(excel => {
+                const excelFilename = excel.filename_without_ext || '';
+                if (!excelFilename) return false;
+                
+                // 获取文件名长度
+                const wordLen = wordFilename.length;
+                const excelLen = excelFilename.length;
+                
+                // 文件名太短，无法应用规则
+                if (wordLen <= 3 || excelLen <= 3) return false;
+                
+                // 获取除了最后三个字符外的部分
+                const wordPrefix = wordFilename.substring(0, wordLen - 3);
+                const excelPrefix = excelFilename.substring(0, excelLen - 3);
+                
+                console.log(`比较: Word=${wordFilename}, Excel=${excelFilename}`);
+                console.log(`前缀: Word=${wordPrefix}, Excel=${excelPrefix}`);
+                console.log(`前缀长度: Word=${wordPrefix.length}, Excel=${excelPrefix.length}`);
+                
+                // 检查每个字符是否相同，帮助调试
+                let isMatch = true;
+                if (wordPrefix.length === excelPrefix.length) {
+                    for (let i = 0; i < wordPrefix.length; i++) {
+                        if (wordPrefix[i] !== excelPrefix[i]) {
+                            console.log(`不匹配的字符在位置 ${i}: Word='${wordPrefix[i]}' (${wordPrefix.charCodeAt(i)}), Excel='${excelPrefix[i]}' (${excelPrefix.charCodeAt(i)})`);
+                            isMatch = false;
+                        }
+                    }
+                } else {
+                    console.log('前缀长度不同，不匹配');
+                    isMatch = false;
+                }
+                
+                // 如果前缀相同，则认为匹配
+                return isMatch;
+            });
+            
+            if (matchedExcel) {
+                // 建立双向关联
+                wordAtt.matched_excel = matchedExcel.name;
+                matchedExcel.word_attachment = wordAtt;
+                // 清除任何错误标记
+                delete wordAtt.error;
+                console.log(`匹配成功: ${wordAtt.name} 匹配到 ${matchedExcel.name}`);
+            } else {
+                unmatchedWord = true;
+                wordAtt.error = '找不到匹配的Excel文件';
+                console.log(`未匹配: ${wordAtt.name} 没有找到匹配的Excel文件`);
+            }
+        }
         
+        // 检查是否有未匹配的Excel文件
+        for (const excelAtt of excelAttachments) {
+            if (!excelAtt.word_attachment) {
+                unmatchedExcel = true;
+                excelAtt.warning = '没有匹配的Word文档';
+                console.log(`未匹配: ${excelAtt.name} 没有匹配的Word文档`);
+            } else {
+                // 清除任何警告标记
+                delete excelAtt.warning;
+            }
+        }
+        
+        // 如果有未匹配的文件，显示警告
         if (unmatchedWord || unmatchedExcel) {
-            document.getElementById('wordExcelWarning').classList.remove('d-none');
-            showAlert('部分Word文档和Excel文件未能正确匹配，请检查邮箱地址', 'warning');
+            wordExcelWarning.classList.remove('d-none');
+            showAlert('部分Word文档和Excel文件未能正确匹配，请检查文件名是否符合匹配规则', 'warning');
         } else {
-            document.getElementById('wordExcelWarning').classList.add('d-none');
+            wordExcelWarning.classList.add('d-none');
         }
-        
-        document.querySelector('.btn-send').disabled = false;
+    } else if (wordAttachments.length > 0 && excelAttachments.length === 0) {
+        // 如果只有Word文档没有Excel文件
+        for (const wordAtt of wordAttachments) {
+            if (wordAtt.email) {
+                wordAtt.error = '找不到匹配的Excel文件';
+            } else {
+                wordAtt.error = '无法从文档中提取邮箱地址';
+            }
+        }
+        wordExcelWarning.classList.remove('d-none');
+        showAlert('没有匹配的Excel文件，请上传相应的Excel文件', 'warning');
     }
+    
+    // 更新附件列表显示
+    updateAttachmentList();
+    
+    // 启用发送按钮
+    document.querySelector('.btn-send').disabled = false;
+}
+
+// 检查文件匹配状态
+function checkDuplicateEmails() {
 }
 
 // 清空附件列表

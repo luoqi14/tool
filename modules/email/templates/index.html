@@ -88,7 +88,7 @@
                                         系统将自动从文件中提取"接收邮箱"或"接收账单邮箱"相邻单元格的邮箱地址作为收件人
                                     </div>
                                     <div class="form-text mt-1">
-                                        如果上传Word文档，需要与Excel文件一一对应，系统会从文档中提取"接收邮箱："后面的值进行匹配
+                                        <strong>Word和Excel文件匹配规则：</strong>系统会根据文件名进行匹配，文件名除了最后三个字符外其余部分必须相同才会匹配成功
                                     </div>
                                 </label>
                                 <input type="file" class="d-none" id="attachmentInput" accept=".xlsx, .xls, .doc, .docx" multiple>
@@ -97,7 +97,7 @@
                                 <i class="bi bi-exclamation-triangle"></i> 请只上传Excel格式（.xlsx或.xls）或Word格式（.doc或.docx）的文件
                             </div>
                             <div class="file-type-warning d-none" id="wordExcelWarning">
-                                <i class="bi bi-exclamation-triangle"></i> Word文档需要与Excel文件一一对应，请确保邮箱地址匹配
+                                <i class="bi bi-exclamation-triangle"></i> Word文档需要与Excel文件一一对应，请确保文件名符合匹配规则
                             </div>
                         </div>
                         

@@ -14,6 +14,7 @@ import pandas as pd
 import re
 import json
 import docx
+import pathlib
 
 # 创建蓝图
 email_bp = Blueprint('email', __name__, 
@@ -192,14 +193,19 @@ def parse_file():
         # 根据文件扩展名决定如何解析
         file_ext = filename.split('.')[-1].lower()
         
+        # 获取文件名（不包含扩展名）用于匹配
+        filename_without_ext = os.path.splitext(filename)[0]
+        
         if file_ext in ['doc', 'docx']:
             # 解析Word文档
             result = extract_emails_from_word(temp_file.name)
             result['filename'] = filename
+            result['filename_without_ext'] = filename_without_ext
         else:
             # 解析Excel文件
             result = extract_emails_from_excel(temp_file.name)
             result['filename'] = filename
+            result['filename_without_ext'] = filename_without_ext
         
         # 删除临时文件
         os.unlink(temp_file.name)
@@ -212,7 +218,8 @@ def parse_file():
                 'period_range': result.get('period_range', ''),
                 'company': result.get('company', ''),
                 'is_word': result.get('is_word', False),
-                'filename': filename
+                'filename': filename,
+                'filename_without_ext': filename_without_ext
             })
         else:
             file_type = 'Word文档' if file_ext in ['doc', 'docx'] else 'Excel文件'
