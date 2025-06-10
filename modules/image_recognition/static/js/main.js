@@ -1,22 +1,55 @@
 document.addEventListener('DOMContentLoaded', function() {
     // 获取DOM元素
-    const dropArea = document.getElementById('dropArea');
-    const imageInput = document.getElementById('imageInput');
-    const uploadPlaceholder = document.getElementById('uploadPlaceholder');
-    const imagePreviews = document.getElementById('imagePreviews');
+    const imagePreviewsContainer = document.getElementById('imagePreviews'); // For direct uploads, if any
+    const resultContainer = document.getElementById('resultContainer');
     const processButton = document.getElementById('processButton');
     const promptInput = document.getElementById('promptInput');
-    const resultContainer = document.getElementById('resultContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const statusIndicator = document.getElementById('status-indicator');
-    
-    // 全局变量，存储识别结果文本
-    let resultText = '';
-    
-    // 存储上传的图片文件
-    let uploadedFiles = [];
-    
-    // 设置默认提示词
+    const productIdInput = document.getElementById('productIdInput');
+    const downloadResultsButton = document.getElementById('downloadResults');
+
+    // --- 样式 --- (保持不变)
+    function addCustomStyles() {
+        if (!document.getElementById('custom-ocr-styles')) {
+            const style = document.createElement('style');
+            style.id = 'custom-ocr-styles';
+            style.textContent = `
+                .image-display-section { margin-bottom: 5px; padding: 5px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #f9f9f9; }
+                .image-display-section h6 { margin-top: 0; margin-bottom: 5px; color: #333; font-weight: bold; font-size: 14px; }
+                .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 5px; margin-top: 5px; }
+                .image-result-item { border: 1px solid #ddd; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s; }
+                .image-result-item:hover { transform: scale(1.03); }
+                .image-result-item img { width: 100%; height: 100px; object-fit: cover; }
+                .recognition-result-section { padding: 5px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #fff; max-height: 400px; overflow-y: auto; }
+                .recognition-result-section h5 { margin-top: 0; color: #333; font-weight: bold; font-size: 16px; }
+                .result-content { margin-top: 5px; line-height: 1.4; white-space: pre-wrap; font-size: 14px; }
+                .product-result-section { margin-bottom: 5px; border: 1px solid #ccc; border-radius: 8px; background-color: #f0f0f0; overflow: hidden; }
+                .product-result-section h5 { font-size: 15px; margin: 0; padding: 8px 10px; cursor: pointer; background-color: #e9ecef; }
+                .product-result-section .collapsible-content { max-height: 1500px; overflow: hidden; transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out; padding: 5px 10px; }
+                .product-result-section.collapsed .collapsible-content { max-height: 0; padding-top: 0; padding-bottom: 0; }
+                .batch-log { max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin-bottom: 10px; background-color: #f8f9fa; }
+                .batch-log-item { font-size: 13px !important; } /* Ensure px and override Bootstrap fs-sm if it uses rem */
+                .status-indicator .badge { font-size: 13px; padding: 5px 8px; }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+    addCustomStyles();
+
+    // --- 状态变量 --- 
+    let productsData = []; // Batch: [{ id, image_urls:[], image_files:[], resultText:'', status:'', error:null }]
+    let currentProduct = { // Single: { id, image_urls:[], image_files:[], resultText:'', status:'', error:null }
+        id: '', image_urls: [], image_files: [], resultText: '', status: '', error: null
+    };
+    let currentBatchProductIndex = 0;
+    let isBatchProcessingMode = false;
+
+    // --- API URLs ---
+    const API_URL_FETCH_IMAGES = '/image/recognition/fetch_product_images';
+    const API_URL_PROCESS_IMAGES = '/image/recognition/process';
+
+    // --- 默认提示词 --- (保持不变)
     promptInput.value = `请识别图片中的所有文字，并按以下顺序生成三份输出，要求严格按照以下格式：
 
 ### RAW_START ###
@@ -47,669 +80,521 @@ document.addEventListener('DOMContentLoaded', function() {
   "sterilization": null            // 消毒灭菌
 }
 ### STRUCTURED_JSON_END ###`;
-    
-    // 点击上传区域触发文件选择
-    uploadPlaceholder.addEventListener('click', function() {
-        imageInput.click();
-    });
-    
-    // 添加更多图片按钮点击
-    document.getElementById('addMoreImages').addEventListener('click', function() {
-        imageInput.click();
-    });
-    
-    // 处理文件选择
-    imageInput.addEventListener('change', function() {
-        handleFiles(this.files);
-    });
-    
-    // 创建拖放区域
-    const uploadContainer = document.querySelector('.image-upload-container');
-    
-    // 处理拖放 - 拖动进入
-    uploadContainer.addEventListener('dragenter', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadContainer.classList.add('drag-over');
-    });
-    
-    // 处理拖放 - 拖动经过
-    uploadContainer.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadContainer.classList.add('drag-over');
-    });
-    
-    // 处理拖放 - 拖动离开
-    uploadContainer.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadContainer.classList.remove('drag-over');
-    });
-    
-    // 处理拖放 - 放置文件
-    uploadContainer.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        uploadContainer.classList.remove('drag-over');
-        
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        
-        handleFiles(files);
-    });
-    
-    // 处理文件
-    function handleFiles(files) {
-        if (files.length === 0) return;
-        
-        // 清空之前的预览
-        if (uploadedFiles.length === 0) {
-            imagePreviews.innerHTML = '';
+
+    // --- UI辅助函数 --- 
+    function createProductResultSection(productId) {
+        const section = document.createElement('div');
+        section.className = 'product-result-section collapsed';
+        section.id = `product-result-${productId}`;
+        section.innerHTML = `
+            <h5 title="点击展开/收起" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>产品 ${productId} 处理结果</span>
+                <button class="btn btn-sm btn-outline-secondary re-recognize-btn" data-product-id="${productId}" title="重新识别" style="padding: 0.1rem 0.3rem; font-size: 0.75rem; line-height: 1;"><i class="bi bi-arrow-clockwise"></i></button>
+            </h5>
+            <div class="collapsible-content">
+                <div class="image-display-section mb-2">
+                    <h6>产品图片：</h6>
+                    <div class="image-grid"><p class="text-muted">等待加载图片...</p></div>
+                </div>
+                <div class="recognition-result-section">
+                    <div class="result-content"><p class="text-muted">等待识别...</p></div>
+                </div>
+            </div>
+        `;
+
+        section.querySelector('h5').addEventListener('click', () => {
+            section.classList.toggle('collapsed');
+        });
+
+        return section;
+    }
+
+    function updateStatusIndicator(statusKey, productId = null, message = '') {
+        let fullMessage = '';
+        switch (statusKey) {
+            case 'idle': fullMessage = '<span class="badge bg-secondary">尚未开始</span>'; break;
+            case 'fetching_urls': fullMessage = `<span class="badge bg-info">产品 ${productId}: 获取图片URL...</span>`; break;
+            case 'converting_images': fullMessage = `<span class="badge bg-info">产品 ${productId}: 转换图片...</span>`; break;
+            case 'processing_ocr': fullMessage = `<span class="badge bg-primary">产品 ${productId}: 识别中...${message}</span>`; break;
+            case 'success_ocr': fullMessage = `<span class="badge bg-success">产品 ${productId}: 识别成功</span>`; break;
+            case 'error': fullMessage = `<span class="badge bg-danger">产品 ${productId}: 错误 - ${message}</span>`; break;
+            case 'batch_starting': fullMessage = `<span class="badge bg-primary">批量处理已启动...</span>`; break;
+            case 'batch_item_processing': fullMessage = `<span class="badge bg-info">批量处理: 产品 ${productId} (${currentBatchProductIndex + 1}/${productsData.length})</span>`; break;
+            case 'batch_complete': fullMessage = `<span class="badge bg-success">批量处理完成</span>`; break;
+            default: fullMessage = `<span class="badge bg-secondary">${statusKey}</span>`;
         }
-        
-        // 处理每个文件
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            
-            // 检查是否为图片
-            if (!file.type.match('image.*')) {
-                continue; // 跳过非图片文件
-            }
-            
-            // 将文件添加到上传列表
-            uploadedFiles.push(file);
-            
-            // 创建预览元素
-            const previewItem = document.createElement('div');
-            previewItem.className = 'image-preview-item';
-            previewItem.dataset.index = uploadedFiles.length - 1;
-            
-            // 创建图片预览
+        statusIndicator.innerHTML = fullMessage;
+        loadingIndicator.classList.toggle('d-none', !['fetching_urls', 'converting_images', 'processing_ocr', 'batch_starting', 'batch_item_processing'].includes(statusKey));
+    }
+
+    function addBatchLog(logMessage, type = 'info') {
+        const batchLogContainer = resultContainer.querySelector('.batch-log');
+        if (!batchLogContainer) return;
+        const logItem = document.createElement('div');
+        logItem.className = `batch-log-item alert alert-${type} p-2 mb-1 fs-sm`; // fs-sm for smaller font
+        logItem.innerHTML = logMessage;
+        batchLogContainer.appendChild(logItem);
+        batchLogContainer.scrollTop = batchLogContainer.scrollHeight;
+    }
+
+    function displayProductImages(imageUrls, productId) {
+        const productSection = document.getElementById(`product-result-${productId}`);
+        if (!productSection) return;
+        const imageGrid = productSection.querySelector('.image-display-section .image-grid');
+        if (!imageGrid) return;
+
+        imageGrid.innerHTML = ''; // Clear previous/loading message
+        if (!imageUrls || imageUrls.length === 0) {
+            imageGrid.innerHTML = '<p class="text-danger">未能加载到任何图片。</p>';
+            return;
+        }
+        imageUrls.forEach((url, index) => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'image-result-item';
             const img = document.createElement('img');
-            img.src = URL.createObjectURL(file);
-            previewItem.appendChild(img);
-            
-            // 创建删除按钮
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'btn btn-sm btn-danger remove-image';
-            removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
-            removeBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const index = parseInt(previewItem.dataset.index);
-                // 从数组中移除文件
-                uploadedFiles.splice(index, 1);
-                // 移除预览元素
-                previewItem.remove();
-                // 更新其他预览元素的索引
-                updatePreviewIndices();
-                // 如果没有图片，显示占位符
-                if (uploadedFiles.length === 0) {
-                    uploadPlaceholder.style.display = 'block';
-                    processButton.disabled = true;
-                }
-            });
-            previewItem.appendChild(removeBtn);
-            
-            // 添加到预览区域
-            imagePreviews.appendChild(previewItem);
-        }
-        
-        // 隐藏占位符，启用处理按钮
-        if (uploadedFiles.length > 0) {
-            uploadPlaceholder.style.display = 'none';
-            processButton.disabled = false;
-        }
-    }
-    
-    // 更新预览元素的索引
-    function updatePreviewIndices() {
-        const previewItems = imagePreviews.querySelectorAll('.image-preview-item');
-        previewItems.forEach((item, index) => {
-            item.dataset.index = index;
+            img.src = url;
+            img.alt = `产品 ${productId} 图片 ${index + 1}`;
+            img.classList.add('clickable-image'); // Added class for clickability
+            img.dataset.imageUrl = url;          // Store URL for preview
+            img.style.cursor = 'pointer';        // Visual cue for clickability
+            img.onerror = () => { itemDiv.innerHTML = '<p class="text-danger sm">图片加载失败</p>'; };
+            itemDiv.appendChild(img);
+            imageGrid.appendChild(itemDiv);
         });
     }
-    
-    // 清空所有图片
-    function clearAllImages() {
-        // 释放所有URL对象
-        const previewItems = imagePreviews.querySelectorAll('.image-preview-item img');
-        previewItems.forEach(img => {
-            if (img.src) {
-                URL.revokeObjectURL(img.src);
-            }
-        });
-        
-        // 清空预览区域
-        imagePreviews.innerHTML = '';
-        uploadPlaceholder.style.display = 'block';
-        processButton.disabled = true;
-        imageInput.value = '';
-        uploadedFiles = [];
+
+    function updateProductRecognitionResult(productId, text, isStreaming = false) {
+        const productSection = document.getElementById(`product-result-${productId}`);
+        if (!productSection) return;
+        const resultContentDiv = productSection.querySelector('.recognition-result-section .result-content');
+        if (!resultContentDiv) return;
+        resultContentDiv.innerHTML = formatResult(text); // formatResult handles markdown
     }
     
-    // 处理图片按钮点击
-    processButton.addEventListener('click', function() {
-        if (uploadedFiles.length === 0) {
-            alert('请先上传图片');
-            return;
-        }
-        
-        // 重置全局结果文本
-        resultText = '';
-        console.log('重置结果文本');
-        
-        // 隐藏下载按钮
-        document.getElementById('downloadResults').style.display = 'none';
-        
-        // 显示加载指示器
-        loadingIndicator.classList.remove('d-none');
-        processButton.disabled = true;
-        
-        // 更新状态指示器
-        updateStatus('processing');
-        
-        // 清空之前的结果
-        resultContainer.innerHTML = `
-            <div class="alert alert-info streaming-text">
-                <div id="streaming-result" class="result-text"></div>
-                <div class="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-            </div>
-        `;
-        
-        const streamingResult = document.getElementById('streaming-result');
-        
-        // 获取提示词
-        const prompt = promptInput.value || '请描述这些图片';
-        
-        // 使用FormData直接发送文件
-        const formData = new FormData();
-        
-        // 添加所有图片文件
-        uploadedFiles.forEach((file, index) => {
-            formData.append('files', file);
-        });
-        
-        formData.append('prompt', prompt);
-        
-        // 使用fetch API的流式处理
-        
-        // 使用FormData直接发送文件
-        fetch('/image/recognition/process', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            
-            // 检查响应类型
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('text/event-stream')) {
-                // 处理流式响应
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                
-                // 递归函数来处理数据流
-                function readStream() {
-                    return reader.read().then(({ done, value }) => {
-                        if (done) {
-                            // 流结束
-                            loadingIndicator.classList.add('d-none');
-                            processButton.disabled = false;
-                            return;
-                        }
-                        
-                        // 解码并处理数据
-                        const chunk = decoder.decode(value, { stream: true });
-                        
-                        // 处理SSE格式的数据
-                        const lines = chunk.split('\n\n');
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                try {
-                                    const data = JSON.parse(line.substring(6));
-                                    
-                                    if (data.done) {
-                                        // 流结束
-                                        loadingIndicator.classList.add('d-none');
-                                        processButton.disabled = false;
-                                        // 移除打字指示器
-                                        document.querySelector('.typing-indicator').remove();
-                                        // 更新状态
-                                        updateStatus('completed');
-                                    } else if (data.text) {
-                                        // 收集完整的文本，然后使用 Markdown 解析
-                                        // 如果还没有存储完整文本，创建一个
-                                        if (!streamingResult.fullText) {
-                                            streamingResult.fullText = '';
-                                        }
-                                        
-                                        // 添加新文本到全局变量和流式结果
-                                        resultText += data.text; // 更新全局变量
-                                        streamingResult.fullText += data.text;
-                                        
-                                        // 使用 Markdown 解析完整文本
-                                        streamingResult.innerHTML = formatResult(streamingResult.fullText);
-                                        
-                                        // 滚动到底部
-                                        resultContainer.scrollTop = resultContainer.scrollHeight;
-                                        
-                                        console.log('累积文本长度:', resultText.length);
-                                    }
-                                } catch (e) {
-                                    console.error('解析SSE数据出错:', e);
-                                }
-                            }
-                        }
-                        
-                        // 继续读取
-                        return readStream();
-                    });
-                }
-                
-                // 开始处理流
-                return readStream();
-            } else {
-                // 非流式响应，回退到普通JSON处理
-                return response.json().then(handleResponse);
-            }
-        })
-        .catch(handleError);
-    });
-    
-    // 处理API响应
-    function handleResponse(data) {
-        // 隐藏加载指示器
-        loadingIndicator.classList.add('d-none');
-        processButton.disabled = false;
-        
-        if (data.status === 'success') {
-            // 显示结果
-            resultContainer.innerHTML = `
-                <div class="alert alert-success">
-                    <h5 class="alert-heading">识别成功</h5>
-                    <hr>
-                    <div class="result-text">${formatResult(data.result)}</div>
-                </div>
-            `;
-        } else {
-            // 显示错误
-            resultContainer.innerHTML = `
-                <div class="alert alert-danger">
-                    <h5 class="alert-heading">处理失败</h5>
-                    <hr>
-                    <p>${data.message || '未知错误'}</p>
-                </div>
-            `;
-        }
-    }
-    
-    // 处理错误
-    function handleError(error) {
-        // 隐藏加载指示器
-        loadingIndicator.classList.add('d-none');
-        processButton.disabled = false;
-        
-        // 更新状态
-        updateStatus('error');
-        
-        // 显示错误
-        resultContainer.innerHTML = `
-            <div class="alert alert-danger">
-                <h5 class="alert-heading">请求失败</h5>
-                <hr>
-                <p>无法连接到服务器，请稍后再试</p>
-                <p class="text-muted small">错误详情: ${error.message}</p>
-            </div>
-        `;
-    }
-    
-    // 格式化结果文本，使用 Markdown 解析
     function formatResult(text) {
-        if (!text) return '';
-        
-        try {
-            // 使用 marked.js 解析 Markdown
-            return marked.parse(text);
-        } catch (e) {
-            console.error('Markdown 解析错误:', e);
-            // 降级处理：如果 marked 解析失败，回退到基本的 HTML 转换
-            return text
-                .replace(/\n/g, '<br>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(text || '');
         }
+        return text ? text.replace(/\n/g, '<br>') : ''; // Basic fallback
     }
-    
-    // 更新状态指示器
-    function updateStatus(status) {
-        // 清除所有状态类
-        const statusBadge = statusIndicator.querySelector('.badge');
-        statusBadge.className = 'badge me-2';
-        
-        // 根据状态设置样式和文本
-        switch(status) {
-            case 'idle':
-                statusBadge.classList.add('bg-secondary');
-                statusBadge.textContent = '尚未开始';
-                break;
-            case 'processing':
-                statusBadge.classList.add('bg-primary', 'processing');
-                statusBadge.textContent = '正在处理';
-                break;
-            case 'completed':
-                statusBadge.classList.add('bg-success', 'completed');
-                statusBadge.textContent = '处理完成';
-                // 显示下载按钮，仅当有结果文本时
-                if (resultText && resultText.trim() !== '') {
-                    document.getElementById('downloadResults').style.display = 'block';
-                    console.log('识别完成，显示下载按钮，文本长度:', resultText.length);
-                } else {
-                    console.warn('识别完成但没有结果文本');
-                }
-                break;
-            case 'error':
-                statusBadge.classList.add('bg-danger', 'error');
-                statusBadge.textContent = '处理错误';
-                break;
-        }
-    }
-    
-    // 解析结果内容，提取三份内容
-    function parseResultContent(text) {
-        const result = {
-            original: null,
-            general: null,
-            specified: null
-        };
-        
-        try {
-            console.log('开始解析结果文本，长度:', text.length);
-            
-            // 尝试提取原文输出
-            const rawRegex = /### RAW_START ###[\s\S]*?### RAW_END ###/i;
-            const rawMatch = text.match(rawRegex);
-            if (rawMatch) {
-                // 去除标记行，只保留内容
-                result.original = rawMatch[0]
-                    .replace(/### RAW_START ###/i, '')
-                    .replace(/### RAW_END ###/i, '')
-                    .trim();
-                console.log('提取到原文输出:', result.original.substring(0, 50) + '...');
-            }
-            
-            // 尝试提取通用 JSON 输出
-            const genericRegex = /### GENERIC_JSON_START ###[\s\S]*?### GENERIC_JSON_END ###/i;
-            const genericMatch = text.match(genericRegex);
-            if (genericMatch) {
-                // 去除标记行，只保留内容
-                const genericText = genericMatch[0]
-                    .replace(/### GENERIC_JSON_START ###/i, '')
-                    .replace(/### GENERIC_JSON_END ###/i, '')
-                    .trim();
-                
-                // 尝试提取完整的JSON对象
-                try {
-                    // 先尝试使用JSON.parse直接解析整个文本
-                    const trimmedText = genericText.trim();
-                    if (trimmedText.startsWith('{') && trimmedText.endsWith('}')) {
-                        // 可能是完整的JSON对象
-                        try {
-                            JSON.parse(trimmedText);
-                            result.general = trimmedText;
-                            console.log('直接解析到完整JSON对象，长度:', trimmedText.length);
-                        } catch {
-                            // 如果不是有效的JSON，使用正则表达式提取
-                            // 使用平衡括号的方式来匹配完整的JSON对象
-                            const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                            const matches = genericText.match(jsonRegex);
-                            if (matches && matches.length > 0) {
-                                // 选择最长的匹配项，可能是最完整的JSON
-                                let longestMatch = matches[0];
-                                for (let i = 1; i < matches.length; i++) {
-                                    if (matches[i].length > longestMatch.length) {
-                                        longestMatch = matches[i];
-                                    }
-                                }
-                                result.general = longestMatch;
-                                console.log('使用正则表达式提取到JSON，长度:', longestMatch.length);
-                            } else {
-                                result.general = genericText;
-                                console.log('无法使用正则表达式提取JSON，使用完整文本');
-                            }
-                        }
-                    } else {
-                        // 使用平衡括号的方式来匹配完整的JSON对象
-                        const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                        const matches = genericText.match(jsonRegex);
-                        if (matches && matches.length > 0) {
-                            // 选择最长的匹配项，可能是最完整的JSON
-                            let longestMatch = matches[0];
-                            for (let i = 1; i < matches.length; i++) {
-                                if (matches[i].length > longestMatch.length) {
-                                    longestMatch = matches[i];
-                                }
-                            }
-                            result.general = longestMatch;
-                            console.log('使用正则表达式提取到JSON，长度:', longestMatch.length);
-                        } else {
-                            result.general = genericText;
-                            console.log('无法使用正则表达式提取JSON，使用完整文本');
-                        }
-                    }
-                } catch (e) {
-                    console.error('提取JSON时出错:', e);
-                    result.general = genericText;
-                    console.log('提取JSON出错，使用完整通用文本');
-                }
-            }
-            
-            // 尝试提取结构化 JSON 输出
-            const structuredRegex = /### STRUCTURED_JSON_START ###[\s\S]*?### STRUCTURED_JSON_END ###/i;
-            const structuredMatch = text.match(structuredRegex);
-            if (structuredMatch) {
-                // 去除标记行，只保留内容
-                const structuredText = structuredMatch[0]
-                    .replace(/### STRUCTURED_JSON_START ###/i, '')
-                    .replace(/### STRUCTURED_JSON_END ###/i, '')
-                    .trim();
-                
-                // 尝试提取完整的JSON对象
-                try {
-                    // 先尝试使用JSON.parse直接解析整个文本
-                    const trimmedText = structuredText.trim();
-                    if (trimmedText.startsWith('{') && trimmedText.endsWith('}')) {
-                        // 可能是完整的JSON对象
-                        try {
-                            JSON.parse(trimmedText);
-                            result.specified = trimmedText;
-                            console.log('直接解析到完整结构化JSON对象，长度:', trimmedText.length);
-                        } catch {
-                            // 如果不是有效的JSON，使用正则表达式提取
-                            // 使用平衡括号的方式来匹配完整的JSON对象
-                            const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                            const matches = structuredText.match(jsonRegex);
-                            if (matches && matches.length > 0) {
-                                // 选择最长的匹配项，可能是最完整的JSON
-                                let longestMatch = matches[0];
-                                for (let i = 1; i < matches.length; i++) {
-                                    if (matches[i].length > longestMatch.length) {
-                                        longestMatch = matches[i];
-                                    }
-                                }
-                                result.specified = longestMatch;
-                                console.log('使用正则表达式提取到结构化JSON，长度:', longestMatch.length);
-                            } else {
-                                result.specified = structuredText;
-                                console.log('无法使用正则表达式提取结构化JSON，使用完整文本');
-                            }
-                        }
-                    } else {
-                        // 使用平衡括号的方式来匹配完整的JSON对象
-                        const jsonRegex = /\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
-                        const matches = structuredText.match(jsonRegex);
-                        if (matches && matches.length > 0) {
-                            // 选择最长的匹配项，可能是最完整的JSON
-                            let longestMatch = matches[0];
-                            for (let i = 1; i < matches.length; i++) {
-                                if (matches[i].length > longestMatch.length) {
-                                    longestMatch = matches[i];
-                                }
-                            }
-                            result.specified = longestMatch;
-                            console.log('使用正则表达式提取到结构化JSON，长度:', longestMatch.length);
-                        } else {
-                            result.specified = structuredText;
-                            console.log('无法使用正则表达式提取结构化JSON，使用完整文本');
-                        }
-                    }
-                } catch (e) {
-                    console.error('提取结构化JSON时出错:', e);
-                    result.specified = structuredText;
-                    console.log('提取结构化JSON出错，使用完整结构化文本');
-                }
-            }
-            
-            // 如果没有提取到任何内容，将整个文本作为原文
-            if (!result.original && !result.general && !result.specified) {
-                result.original = text;
-                console.log('没有提取到结构化内容，使用全部文本作为原文');
-            }
-        } catch (error) {
-            console.error('解析结果时出错:', error);
-            // 出错时将整个文本作为原文
-            result.original = text;
-        }
-        
-        return result;
-    }
-    
-    // 下载识别结果
-    function downloadResults() {
+
+    function parseResultText(resultText) {
         if (!resultText) {
-            alert('没有可下载的识别结果');
+            return { raw: '', genericJson: '', structuredJson: '' };
+        }
+        const rawMatch = resultText.match(/### RAW_START ###\s*([\s\S]*?)\s*### RAW_END ###/);
+        const genericJsonMatch = resultText.match(/### GENERIC_JSON_START ###\s*([\s\S]*?)\s*### GENERIC_JSON_END ###/);
+        const structuredJsonMatch = resultText.match(/### STRUCTURED_JSON_START ###\s*([\s\S]*?)\s*### STRUCTURED_JSON_END ###/);
+
+        return {
+            raw: rawMatch ? rawMatch[1].trim() : '',
+            genericJson: genericJsonMatch ? genericJsonMatch[1].trim() : '',
+            structuredJson: structuredJsonMatch ? structuredJsonMatch[1].trim() : ''
+        };
+    }
+
+    function expandAndScrollToProductPanel(productId) {
+        const allSections = document.querySelectorAll('.product-result-section');
+        allSections.forEach(sec => {
+            const isTarget = sec.id === `product-result-${productId}`;
+            sec.classList.toggle('collapsed', !isTarget);
+        });
+
+        const targetPanel = document.getElementById(`product-result-${productId}`);
+        if (targetPanel) {
+            targetPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    // --- Core Logic --- 
+    async function convertUrlToImageFile(imageUrl, filenamePrefix = 'image_') {
+        try {
+            const response = await fetch(imageUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status} for ${imageUrl}`);
+            const blob = await response.blob();
+            let filename = imageUrl.substring(imageUrl.lastIndexOf('/') + 1).split(/[?#]/)[0]; // Get filename from URL
+            if (!filename || !filename.includes('.')) { // Ensure filename has extension
+                const extension = blob.type.split('/')[1] || 'jpg';
+                filename = `${filenamePrefix}${Date.now()}.${extension}`;
+            }
+            return new File([blob], filename, { type: blob.type });
+        } catch (error) {
+            console.error(`Failed to convert URL to File (${imageUrl}):`, error);
+            return null; // Indicate failure
+        }
+    }
+
+    async function fetchAndPrepareImages(productId) {
+        updateStatusIndicator('fetching_urls', productId);
+        let targetProduct = isBatchProcessingMode ? productsData.find(p => p.id === productId) : currentProduct;
+        if (!targetProduct) return null;
+
+        targetProduct.image_urls = [];
+        targetProduct.image_files = [];
+
+        try {
+            const response = await fetch(`${API_URL_FETCH_IMAGES}?product_id=${productId}`);
+            if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+            const data = await response.json();
+
+            if (!data.success || !data.images || data.images.length === 0) {
+                throw new Error(data.message || '未找到产品图片。');
+            }
+            targetProduct.image_urls = data.images;
+            displayProductImages(targetProduct.image_urls, productId);
+            updateStatusIndicator('converting_images', productId);
+
+            for (const url of targetProduct.image_urls) {
+                const file = await convertUrlToImageFile(url, `${productId}_`);
+                if (file) {
+                    targetProduct.image_files.push(file);
+                }
+            }
+
+            if (targetProduct.image_files.length === 0 && targetProduct.image_urls.length > 0) {
+                 throw new Error('所有图片URL都无法转换为文件。');
+            }
+            return targetProduct.image_files;
+        } catch (error) {
+            console.error(`Error fetching/preparing images for ${productId}:`, error);
+            targetProduct.error = error.message;
+            targetProduct.status = 'error';
+            updateStatusIndicator('error', productId, error.message);
+            updateProductRecognitionResult(productId, `<p class="text-danger">图片处理失败: ${error.message}</p>`);
+            return null;
+        }
+    }
+
+    async function triggerImageRecognition(imageFiles, promptValue, productId) {
+        if (!imageFiles || imageFiles.length === 0) {
+            updateStatusIndicator('error', productId, '没有可识别的图片文件。');
+            updateProductRecognitionResult(productId, '<p class="text-danger">错误: 没有可识别的图片文件。</p>');
+            if (isBatchProcessingMode) {
+                const product = productsData.find(p => p.id === productId);
+                if (product) product.status = 'error';
+            }
             return;
         }
-        
-        console.log('准备下载识别结果...');
-        
-        // 解析结果文本，提取三份内容
-        const parts = parseResultContent(resultText);
-        
-        // 获取商品名称或默认名称
-        let folderName = '识别结果';
-        let productName = null;
-        
-        // 尝试从指定字段JSON中提取商品名称
-        if (parts.specified) {
-            try {
-                const specifiedJson = JSON.parse(parts.specified);
-                if (specifiedJson && specifiedJson.productName) {
-                    productName = specifiedJson.productName;
-                    folderName = productName;
-                    console.log('从指定字段JSON中提取到商品名称:', productName);
-                }
-            } catch (e) {
-                console.error('解析指定字段JSON失败:', e);
-            }
+
+        updateStatusIndicator('processing_ocr', productId);
+        let targetProduct = isBatchProcessingMode ? productsData.find(p => p.id === productId) : currentProduct;
+        if (targetProduct) {
+            targetProduct.status = 'processing';
+            targetProduct.resultText = ''; // Clear previous results
         }
-        
-        // 如果没有从指定字段中提取到，尝试从通用JSON中提取
-        if (!productName && parts.general) {
-            try {
-                const generalJson = JSON.parse(parts.general);
-                if (generalJson && (generalJson.productName || generalJson.name || generalJson.title)) {
-                    productName = generalJson.productName || generalJson.name || generalJson.title;
-                    folderName = productName;
-                    console.log('从通用JSON中提取到商品名称:', productName);
-                }
-            } catch (e) {
-                console.error('解析通用JSON失败:', e);
-            }
-        }
-        
-        // 清理文件夹名称，移除非法字符
-        folderName = folderName.replace(/[\\/:*?"<>|]/g, '_');
-        if (!folderName || folderName.trim() === '') {
-            folderName = '识别结果';
-        }
-        
-        console.log('使用文件夹名称:', folderName);
-        
-        // 创建ZIP文件
-        const zip = new JSZip();
-        
-        // 创建文件夹
-        const folder = zip.folder(folderName);
-        
-        // 添加原文文本文件
-        folder.file('原文.txt', parts.original || resultText);
-        console.log('添加原文.txt文件');
-        
-        // 添加通用JSON文件
-        // 确保完整的JSON内容被添加到文件中
+
+        const formData = new FormData();
+        formData.append('prompt', promptValue);
+        imageFiles.forEach(file => formData.append('files', file));
+
         try {
-            // 尝试格式化JSON以确保完整性
-            let generalJson = parts.general || '{}';
-            if (typeof generalJson === 'string') {
-                // 尝试解析然后重新格式化，以确保完整的JSON
-                try {
-                    const parsedJson = JSON.parse(generalJson);
-                    generalJson = JSON.stringify(parsedJson, null, 2);
-                    console.log('通用JSON格式化成功');
-                } catch (e) {
-                    console.warn('通用JSON格式化失败，使用原始文本:', e);
+            const response = await fetch(API_URL_PROCESS_IMAGES, { method: 'POST', body: formData });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+                throw new Error(errorData.message || `API请求失败: ${response.statusText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                let boundary = buffer.indexOf('\n\n');
+                while (boundary !== -1) {
+                    const chunk = buffer.substring(0, boundary);
+                    buffer = buffer.substring(boundary + 2);
+                    if (chunk.startsWith('data: ')) {
+                        try {
+                            const eventData = JSON.parse(chunk.substring(6));
+                            if (eventData.text) {
+                                if (targetProduct) targetProduct.resultText += eventData.text;
+                                updateProductRecognitionResult(productId, targetProduct ? targetProduct.resultText : eventData.text, true);
+                                updateStatusIndicator('processing_ocr', productId, '接收数据...');
+                            } else if (eventData.done) {
+                                if (targetProduct) targetProduct.status = 'success';
+                                updateStatusIndicator('success_ocr', productId);
+                                if (!isBatchProcessingMode) downloadResultsButton.style.display = 'inline-block';
+                                return; // Stream finished successfully
+                            }
+                        } catch (e) { console.error('Error parsing stream data:', e, 'Chunk:', chunk); }
+                    }
+                    boundary = buffer.indexOf('\n\n');
                 }
             }
-            folder.file('通用.json', generalJson);
-            console.log('添加通用.json文件，内容长度:', generalJson.length);
-        } catch (e) {
-            console.error('添加通用JSON文件失败:', e);
-            folder.file('通用.json', '{}');
-        }
-        
-        // 添加指定字段JSON文件
-        // 确保完整的JSON内容被添加到文件中
-        try {
-            // 尝试格式化JSON以确保完整性
-            let specifiedJson = parts.specified || '{}';
-            if (typeof specifiedJson === 'string') {
-                // 尝试解析然后重新格式化，以确保完整的JSON
-                try {
-                    const parsedJson = JSON.parse(specifiedJson);
-                    specifiedJson = JSON.stringify(parsedJson, null, 2);
-                    console.log('指定字段JSON格式化成功');
-                } catch (e) {
-                    console.warn('指定字段JSON格式化失败，使用原始文本:', e);
-                }
+            // Should be caught by eventData.done, but as a fallback:
+            if (targetProduct) targetProduct.status = 'success';
+            updateStatusIndicator('success_ocr', productId);
+            if (!isBatchProcessingMode) downloadResultsButton.style.display = 'inline-block';
+
+        } catch (error) {
+            console.error(`Error during recognition for ${productId}:`, error);
+            if (targetProduct) {
+                targetProduct.error = error.message;
+                targetProduct.status = 'error';
             }
-            folder.file('指定.json', specifiedJson);
-            console.log('添加指定.json文件，内容长度:', specifiedJson.length);
-        } catch (e) {
-            console.error('添加指定字段JSON文件失败:', e);
-            folder.file('指定.json', '{}');
+            updateStatusIndicator('error', productId, error.message);
+            updateProductRecognitionResult(productId, `<p class="text-danger">识别失败: ${error.message}</p>`);
         }
-        
-        // 生成ZIP文件并下载
-        console.log('开始生成ZIP文件...');
-        zip.generateAsync({type: 'blob'})
-            .then(function(content) {
-                // 使用FileSaver.js保存文件
-                saveAs(content, `${folderName}.zip`);
-                console.log('ZIP文件生成并下载成功');
-            })
-            .catch(function(error) {
-                console.error('生成ZIP文件失败:', error);
-                alert('生成ZIP文件失败: ' + error.message);
-            });
     }
-    
-    // 下载按钮点击事件
-    document.getElementById('downloadResults').addEventListener('click', downloadResults);
+
+    async function processSingleProduct(productId, promptValue) {
+        isBatchProcessingMode = false;
+        currentProduct.id = productId;
+        currentProduct.status = 'pending';
+        currentProduct.error = null;
+        currentProduct.resultText = '';
+        resultContainer.innerHTML = ''; // Clear global results for single product
+        resultContainer.appendChild(createProductResultSection(productId));
+        downloadResultsButton.style.display = 'none';
+
+        const imageFiles = await fetchAndPrepareImages(productId);
+        if (imageFiles && imageFiles.length > 0) {
+            await triggerImageRecognition(imageFiles, promptValue, productId);
+        } else if (!currentProduct.error) { // If no specific error from fetchAndPrepareImages but no files
+            updateStatusIndicator('error', productId, '未能准备图片进行识别。');
+        }
+    }
+
+    async function processBatch() {
+        if (currentBatchProductIndex >= productsData.length) {
+            updateStatusIndicator('batch_complete');
+            addBatchLog('所有产品处理完成。', 'success');
+            downloadResultsButton.style.display = 'inline-block';
+            return;
+        }
+
+        const product = productsData[currentBatchProductIndex];
+        expandAndScrollToProductPanel(product.id);
+        updateStatusIndicator('batch_item_processing', product.id);
+        addBatchLog(`开始处理产品: ${product.id} (${currentBatchProductIndex + 1}/${productsData.length})`, 'info');
+        product.status = 'pending';
+        product.error = null;
+        product.resultText = '';
+
+        const imageFiles = await fetchAndPrepareImages(product.id);
+        if (imageFiles && imageFiles.length > 0) {
+            await triggerImageRecognition(imageFiles, promptInput.value.trim(), product.id);
+        } else if (!product.error) {
+            updateStatusIndicator('error', product.id, '未能准备图片进行识别。');
+            addBatchLog(`产品 ${product.id}: 未能准备图片。`, 'warning');
+            product.status = 'error'; // Mark as error if no files and no prior error
+        }
+        
+        // Log completion or error for the current item
+        if (product.status === 'success') {
+            addBatchLog(`产品 ${product.id} 处理成功。`, 'success');
+        } else if (product.status === 'error') {
+            addBatchLog(`产品 ${product.id} 处理失败: ${product.error || '未知错误'}`, 'danger');
+        }
+
+        currentBatchProductIndex++;
+        setTimeout(processBatch, 100); // Process next item with a small delay
+    }
+
+    // --- Feature Implementations ---
+    function handleReRecognize(productId) {
+        console.log(`Attempting to re-recognize product: ${productId}`);
+        const product = productsData.find(p => p.id === productId);
+
+        if (!product || !product.image_files || product.image_files.length === 0) {
+            alert('没有找到该产品的图片文件缓存，无法重新识别。请确保该产品已成功加载过一次。');
+            return;
+        }
+
+        const promptValue = promptInput.value.trim();
+        if (!promptValue) {
+            alert('请输入提示词后再进行识别。');
+            promptInput.focus();
+            return;
+        }
+
+        // Clear previous results and show loading state
+        const productSection = document.getElementById(`product-result-${productId}`);
+        if (productSection) {
+            const resultContent = productSection.querySelector('.result-content');
+            const resultHeader = productSection.querySelector('.recognition-result-section h5');
+            if (resultContent && resultHeader) {
+                resultHeader.textContent = '识别结果 (重新识别中...)';
+                resultContent.innerHTML = '<div class="d-flex justify-content-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+            }
+            // Reset product data for re-recognition
+            product.resultText = '';
+            product.isProcessing = true;
+        }
+        
+        updateStatusIndicator('processing', `正在重新识别产品 ${productId}...`);
+        expandAndScrollToProductPanel(productId);
+
+        // Reuse the existing triggerImageRecognition function
+        triggerImageRecognition(product.image_files, promptValue, productId);
+    }
+
+    function showImagePreview(imageUrl) {
+        const modalImage = document.getElementById('modalImage');
+        if (modalImage) {
+            modalImage.src = imageUrl;
+            const modal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
+            modal.show();
+        } else {
+            console.error('Image preview modal element not found!');
+            alert('图片预览功能初始化失败。');
+        }
+    }
+
+    // --- Event Listeners ---
+    processButton.addEventListener('click', async () => {
+        const productIdsRaw = productIdInput.value.trim();
+        const promptValue = promptInput.value.trim();
+
+        if (!promptValue) {
+            alert('请输入提示词。');
+            return;
+        }
+        if (!productIdsRaw) {
+            alert('请输入产品ID。'); // For now, require product ID
+            return;
+        }
+
+        const uniqueProductIds = [...new Set(productIdsRaw.split(',').map(id => id.trim()).filter(id => id))];
+
+        if (uniqueProductIds.length === 0) {
+            alert('未提供有效的产品ID。');
+            return;
+        }
+
+        resultContainer.innerHTML = ''; // Clear previous results
+        downloadResultsButton.style.display = 'none';
+
+        if (uniqueProductIds.length > 1) {
+            isBatchProcessingMode = true;
+            productsData = uniqueProductIds.map(id => ({ 
+                id: id, image_urls: [], image_files: [], resultText: '', status: 'pending', error: null 
+            }));
+            currentBatchProductIndex = 0;
+            
+            const batchLogContainer = document.createElement('div');
+            batchLogContainer.className = 'batch-log card card-body mb-3';
+            resultContainer.appendChild(batchLogContainer);
+            addBatchLog(`启动批量处理，共 ${productsData.length} 个产品...`, 'primary');
+            updateStatusIndicator('batch_starting');
+
+            productsData.forEach(p => resultContainer.appendChild(createProductResultSection(p.id)));
+            processBatch();
+        } else {
+            await processSingleProduct(uniqueProductIds[0], promptValue);
+        }
+    });
+
+    downloadResultsButton.addEventListener('click', () => {
+        if (isBatchProcessingMode && productsData.some(p => p.resultText)) {
+            const zip = new JSZip();
+            productsData.forEach(product => {
+                if (product.resultText) {
+                    const parsedResults = parseResultText(product.resultText);
+                    const productFolder = zip.folder(product.id);
+                    const imagesFolder = productFolder.folder('images');
+
+                    let infoContent = `产品ID: ${product.id}\n\n`;
+                    infoContent += `--- 包含图片文件 (位于 'images' 文件夹下) ---\n`;
+                    if (product.image_files && product.image_files.length > 0) {
+                        product.image_files.forEach(file => {
+                            imagesFolder.file(file.name, file);
+                            infoContent += `${file.name}\n`;
+                        });
+                    } else {
+                        infoContent += `(无图片文件处理或包含在此次下载中)\n`;
+                    }
+                    productFolder.file(`info.txt`, infoContent);
+
+                    if (parsedResults.raw) {
+                        productFolder.file(`raw_ocr.txt`, parsedResults.raw);
+                    }
+                    if (parsedResults.genericJson) {
+                        productFolder.file(`generic_output.json`, parsedResults.genericJson);
+                    }
+                    if (parsedResults.structuredJson) {
+                        try {
+                            const structuredData = JSON.parse(parsedResults.structuredJson);
+                            structuredData.mmProductCode = product.id;
+                            const updatedJson = JSON.stringify(structuredData, null, 2);
+                            productFolder.file(`structured_output.json`, updatedJson);
+                        } catch (e) {
+                            console.error(`Error processing structured JSON for product ${product.id}:`, e);
+                            productFolder.file(`structured_output.json`, parsedResults.structuredJson); // Fallback
+                        }
+                    }
+                }
+            });
+            zip.generateAsync({ type: "blob" })
+                .then(function(content) {
+                    saveAs(content, "批量识别结果.zip");
+                });
+        } else if (!isBatchProcessingMode && currentProduct.id && currentProduct.resultText) {
+            const zip = new JSZip();
+            const parsedResults = parseResultText(currentProduct.resultText);
+            const imagesFolder = zip.folder('images');
+
+            let infoContent = `产品ID: ${currentProduct.id}\n\n`;
+            infoContent += `--- 包含图片文件 (位于 'images' 文件夹下) ---\n`;
+            if (currentProduct.image_files && currentProduct.image_files.length > 0) {
+                currentProduct.image_files.forEach(file => {
+                    imagesFolder.file(file.name, file);
+                    infoContent += `${file.name}\n`;
+                });
+            } else {
+                infoContent += `(无图片文件处理或包含在此次下载中)\n`;
+            }
+            zip.file(`info.txt`, infoContent);
+
+            if (parsedResults.raw) {
+                zip.file(`raw_ocr.txt`, parsedResults.raw);
+            }
+            if (parsedResults.genericJson) {
+                zip.file(`generic_output.json`, parsedResults.genericJson);
+            }
+            if (parsedResults.structuredJson) {
+                try {
+                    const structuredData = JSON.parse(parsedResults.structuredJson);
+                    structuredData.mmProductCode = currentProduct.id;
+                    const updatedJson = JSON.stringify(structuredData, null, 2);
+                    zip.file(`structured_output.json`, updatedJson);
+                } catch (e) {
+                    console.error(`Error processing structured JSON for product ${currentProduct.id}:`, e);
+                    zip.file(`structured_output.json`, parsedResults.structuredJson); // Fallback
+                }
+            }
+
+            zip.generateAsync({ type: "blob" })
+                .then(function(blob) {
+                    saveAs(blob, `${currentProduct.id}_识别结果.zip`);
+                });
+        } else {
+            alert('没有可下载的结果。');
+        }
+    });
+
+    // Delegated event listener for re-recognize and image preview
+    resultContainer.addEventListener('click', function(event) {
+        const target = event.target;
+        // Check if the click is on a re-recognize button or its icon
+        const reRecognizeButton = target.closest('.re-recognize-btn');
+        if (reRecognizeButton) {
+            const productId = reRecognizeButton.dataset.productId;
+            handleReRecognize(productId);
+            return; // Stop further processing if it's a re-recognize click
+        }
+
+        // Check if the click is on a clickable image
+        if (target.classList.contains('clickable-image')) {
+            const imageUrl = target.dataset.imageUrl;
+            showImagePreview(imageUrl);
+            return; // Stop further processing if it's an image click
+        }
+    });
+
+    // Initial UI state
+    updateStatusIndicator('idle');
 });

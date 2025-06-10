@@ -5,6 +5,8 @@ from flask import Blueprint, render_template, request, jsonify, Response, stream
 import os
 import tempfile
 import json
+import httpx
+import re
 from google.genai import Client
 
 # 创建蓝图
@@ -86,6 +88,90 @@ def process_image():
             'message': f'处理图片时出错: {str(e)}'
         }), 500
 
+
+@image_recognition_bp.route('/fetch_product_images', methods=['GET', 'POST'])
+def fetch_product_images():
+    """从外部API获取产品图片URL"""
+    try:
+        # 获取请求数据 - 支持GET和POST方法
+        if request.method == 'POST':
+            data = request.json
+            if not data or 'productId' not in data:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供产品ID'
+                }), 400
+            product_id = data['productId']
+        else:  # GET方法
+            product_id = request.args.get('product_id')
+            if not product_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供产品ID'
+                }), 400
+        
+        # 调用外部API
+        api_url = 'http://notify.mmm920.com/api/notify_getProductPage'
+        payload = {"uniformcodes": [product_id]}
+        
+        # 使用httpx发送请求，不使用代理
+        with httpx.Client() as client:
+            response = client.post(api_url, json=payload)
+            
+            # 检查响应
+            if response.status_code != 200:
+                return jsonify({
+                    'success': False,
+                    'message': f'外部API返回错误状态码: {response.status_code}'
+                }), 500
+            
+            # 解析响应数据
+            try:
+                api_data = response.json()
+                
+                # 从响应中提取图片URL
+                image_urls = []
+                base_url = 'https://www.mmm920.com'
+                
+                # 检查响应数据结构
+                if api_data.get('isSuccess') == True and api_data.get('data'):
+                    data_array = api_data.get('data')
+                    if not isinstance(data_array, list):
+                        data_array = [data_array]
+                    
+                    # 遍历数据提取图片URL
+                    for item in data_array:
+                        if item and 'page' in item:
+                            page_html = item['page']
+                            if page_html:
+                                # 使用正则表达式提取所有img标签的src属性
+                                img_src_pattern = re.compile(r'<img[^>]+src=["\']([^"\'>]+)["\']')
+                                img_srcs = img_src_pattern.findall(page_html)
+                                
+                                for src in img_srcs:
+                                    # 如果是相对路径，拼接基础URL
+                                    if src.startswith('/'):
+                                        src = base_url + src
+                                    image_urls.append(src)
+                
+                # 返回成功响应和图片URL列表
+                return jsonify({
+                    'success': True,
+                    'images': image_urls,
+                    'message': f'成功获取{len(image_urls)}张图片'
+                })
+                
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'message': f'解析API响应时出错: {str(e)}'
+                }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'处理请求时出错: {str(e)}'
+        }), 500
 
 def stream_response(model_name, prompt, uploaded_files, temp_file_paths):
     """流式输出响应，支持多图处理"""

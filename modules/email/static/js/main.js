@@ -3,6 +3,14 @@ let attachmentFiles = [];
 let quillEditor;
 let lastSendResults = [];
 
+// Function to update the file count display
+function updateFileCount() {
+    const fileCountElement = document.getElementById('file-count');
+    if (fileCountElement) {
+        fileCountElement.textContent = attachmentFiles.length;
+    }
+}
+
 // 预设邮件模板
 const EMAIL_TEMPLATES = {
     cleaning: {
@@ -63,6 +71,7 @@ function initTemplateFeature() {
                 t.setAttribute('data-selected', 'false');
                 t.classList.remove('selected');
             });
+    updateFileCount();
             
             // 设置当前项为选中状态
             this.setAttribute('data-selected', 'true');
@@ -98,6 +107,7 @@ function initTemplateFeature() {
             }
         });
     });
+    updateFileCount();
 }
 
 // 初始化富文本编辑器
@@ -478,6 +488,7 @@ function updateAttachmentList() {
     
     if (attachmentFiles.length === 0) {
         attachmentList.innerHTML = '<div class="text-center text-muted py-3">暂无上传文件</div>';
+    updateFileCount();
         return;
     }
     
@@ -754,6 +765,7 @@ function updateAttachmentList() {
         // 标记该文件已处理
         processedFiles.add(index);
     });
+    updateFileCount();
 }
 
 // 删除附件
