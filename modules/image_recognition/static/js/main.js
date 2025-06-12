@@ -67,10 +67,10 @@ document.addEventListener('DOMContentLoaded', function() {
   "brandName": null,               // 品牌名称
   "orderingInfo": null,            // 规格信息
   "validPeriod": null,             // 有效期
-  "sterilizationValidity": null,   // 灭菌有效期
-  "guaranteePeriod": null,         // 质保期
-  "storage": null,                 // 储存方式
-  "useLife": null,                 // 设备使用寿命
+  "sterilizationValidity": null,   // 灭菌有效期，100字之内
+  "guaranteePeriod": null,         // 质保期，100字之内
+  "storage": null,                 // 储存方式，100字之内
+  "useLife": null,                 // 设备使用寿命，100字之内
   "effectiveComponent": null,      // 有效成分及含量
   "instruction": null,             // 使用说明
   "clinicalOperation": null,       // 临床操作
