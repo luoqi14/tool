@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
 ### GENERIC_JSON_END ###
 
 ### STRUCTURED_JSON_START ###
-(在这两行标记之间，放如下模板的 JSON 对象，字段顺序与模板一致，未识别到的值填 null，禁止多余字段或注释)
+(在这两行标记之间，放如下模板的 JSON 对象，字段顺序与模板一致，所有字段值识别到的都是字符串形式，未识别到的值填 null，禁止多余字段或注释)
 {
   "productName": null,             // 商品名称
   "brandName": null,               // 品牌名称
