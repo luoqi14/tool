@@ -7,6 +7,7 @@ import tempfile
 import json
 import httpx
 import re
+from urllib.parse import urljoin
 from google.genai import Client
 
 # 创建蓝图
@@ -88,90 +89,89 @@ def process_image():
             'message': f'处理图片时出错: {str(e)}'
         }), 500
 
-
 @image_recognition_bp.route('/fetch_product_images', methods=['GET', 'POST'])
 def fetch_product_images():
-    """从外部API获取产品图片URL"""
+    """
+    接收 productId，换取 mmProductCode，再获取产品图片URL。
+    """
     try:
-        # 获取请求数据 - 支持GET和POST方法
+        # 1. 获取 productId
         if request.method == 'POST':
             data = request.json
-            if not data or 'productId' not in data:
-                return jsonify({
-                    'status': 'error',
-                    'message': '未提供产品ID'
-                }), 400
-            product_id = data['productId']
-        else:  # GET方法
-            product_id = request.args.get('product_id')
-            if not product_id:
-                return jsonify({
-                    'status': 'error',
-                    'message': '未提供产品ID'
-                }), 400
+            product_ids_str = data.get('productId')
+        else:  # GET
+            product_ids_str = request.args.get('product_id')
+
+        if not product_ids_str:
+            return jsonify({'success': False, 'message': '未提供产品ID (productId)'}), 400
+
+        # 2. 使用 productId 换取 mmProductCode
+        mm_code_api_url = f"https://opt.jwsmed.com/JARVIS-SERVITIZATION-REST/servitization/mmm/queryMMMMCode?ids={product_ids_str}"
         
-        # 调用外部API
-        api_url = 'http://notify.mmm920.com/api/notify_getProductPage'
-        payload = {"uniformcodes": [product_id]}
-        
-        # 使用httpx发送请求，不使用代理
         with httpx.Client() as client:
-            response = client.post(api_url, json=payload)
-            
-            # 检查响应
-            if response.status_code != 200:
-                return jsonify({
-                    'success': False,
-                    'message': f'外部API返回错误状态码: {response.status_code}'
-                }), 500
-            
-            # 解析响应数据
             try:
-                api_data = response.json()
+                mm_code_response = client.get(mm_code_api_url)
+                mm_code_response.raise_for_status()  # 如果状态码不是 2xx，则引发异常
+                mm_code_data = mm_code_response.json()
                 
-                # 从响应中提取图片URL
+                if not isinstance(mm_code_data, dict) or not mm_code_data:
+                    return jsonify({'success': False, 'message': '未能从productId换取到有效的mmProductCode'}), 404
+
+                # 提取所有的 mmProductCode
+                mm_product_codes = list(mm_code_data.values())
+                if not mm_product_codes:
+                    return jsonify({'success': False, 'message': '未能从返回数据中提取到mmProductCode'}), 404
+
+            except httpx.RequestError as e:
+                return jsonify({'success': False, 'message': f'请求mmProductCode API时网络出错: {e}'}), 500
+            except httpx.HTTPStatusError as e:
+                return jsonify({'success': False, 'message': f'请求mmProductCode API时返回错误状态: {e.response.status_code}'}), 500
+            except json.JSONDecodeError:
+                return jsonify({'success': False, 'message': '解析mmProductCode API响应时出错'}), 500
+
+        # 3. 使用 mmProductCode 获取图片
+        images_api_url = 'http://notify.mmm920.com/api/notify_getProductPage'
+        payload = {"uniformcodes": mm_product_codes}
+        
+        with httpx.Client() as client:
+            try:
+                images_response = client.post(images_api_url, json=payload)
+                images_response.raise_for_status()
+                images_data = images_response.json()
+
                 image_urls = []
                 base_url = 'https://www.mmm920.com'
-                
-                # 检查响应数据结构
-                if api_data.get('isSuccess') == True and api_data.get('data'):
-                    data_array = api_data.get('data')
+
+                if images_data.get('isSuccess') and images_data.get('data'):
+                    data_array = images_data.get('data')
                     if not isinstance(data_array, list):
                         data_array = [data_array]
                     
-                    # 遍历数据提取图片URL
                     for item in data_array:
-                        if item and 'page' in item:
+                        if item and 'page' in item and item['page']:
                             page_html = item['page']
-                            if page_html:
-                                # 使用正则表达式提取所有img标签的src属性
-                                img_src_pattern = re.compile(r'<img[^>]+src=["\']([^"\'>]+)["\']')
-                                img_srcs = img_src_pattern.findall(page_html)
-                                
-                                for src in img_srcs:
-                                    # 如果是相对路径，拼接基础URL
-                                    if src.startswith('/'):
-                                        src = base_url + src
-                                    image_urls.append(src)
+                            # 使用更安全的查找方式，避免复杂的正则
+                            img_src_pattern = re.compile(r'<img[^>]+src=[\"\']([^\"\']+)["\']')
+                            img_srcs = img_src_pattern.findall(page_html)
+                            for src in img_srcs:
+                                image_urls.append(urljoin(base_url, src))
                 
-                # 返回成功响应和图片URL列表
                 return jsonify({
                     'success': True,
                     'images': image_urls,
                     'message': f'成功获取{len(image_urls)}张图片'
                 })
-                
-            except Exception as e:
-                return jsonify({
-                    'success': False,
-                    'message': f'解析API响应时出错: {str(e)}'
-                }), 500
-            
+
+            except httpx.RequestError as e:
+                return jsonify({'success': False, 'message': f'请求图片API时网络出错: {e}'}), 500
+            except httpx.HTTPStatusError as e:
+                return jsonify({'success': False, 'message': f'请求图片API时返回错误状态: {e.response.status_code}'}), 500
+            except json.JSONDecodeError:
+                return jsonify({'success': False, 'message': '解析图片API响应时出错'}), 500
+
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'处理请求时出错: {str(e)}'
-        }), 500
+        # 捕获所有其他未知错误
+        return jsonify({'success': False, 'message': f'处理请求时发生未知错误: {str(e)}'}), 500
 
 def stream_response(model_name, prompt, uploaded_files, temp_file_paths):
     """流式输出响应，支持多图处理"""

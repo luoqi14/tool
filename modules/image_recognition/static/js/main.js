@@ -38,9 +38,9 @@ document.addEventListener('DOMContentLoaded', function() {
     addCustomStyles();
 
     // --- 状态变量 --- 
-    let productsData = []; // Batch: [{ id, image_urls:[], image_files:[], resultText:'', status:'', error:null }]
-    let currentProduct = { // Single: { id, image_urls:[], image_files:[], resultText:'', status:'', error:null }
-        id: '', image_urls: [], image_files: [], resultText: '', status: '', error: null
+    let productsData = []; // Batch: [{ productId, mmProductCode, image_urls:[], image_files:[], resultText:'', status:'', error:null }]
+    let currentProduct = { // Single: { productId, mmProductCode, image_urls:[], image_files:[], resultText:'', status:'', error:null }
+        productId: '', mmProductCode: '', image_urls: [], image_files: [], resultText: '', status: '', error: null
     };
     let currentBatchProductIndex = 0;
     let isBatchProcessingMode = false;
@@ -88,12 +88,12 @@ document.addEventListener('DOMContentLoaded', function() {
         section.id = `product-result-${productId}`;
         section.innerHTML = `
             <h5 title="点击展开/收起" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>产品 ${productId} 处理结果</span>
+                <span>商品 ${productId} 处理结果</span>
                 <button class="btn btn-sm btn-outline-secondary re-recognize-btn" data-product-id="${productId}" title="重新识别" style="padding: 0.1rem 0.3rem; font-size: 0.75rem; line-height: 1;"><i class="bi bi-arrow-clockwise"></i></button>
             </h5>
             <div class="collapsible-content">
                 <div class="image-display-section mb-2">
-                    <h6>产品图片：</h6>
+                    <h6>商品图片：</h6>
                     <div class="image-grid"><p class="text-muted">等待加载图片...</p></div>
                 </div>
                 <div class="recognition-result-section">
@@ -113,13 +113,13 @@ document.addEventListener('DOMContentLoaded', function() {
         let fullMessage = '';
         switch (statusKey) {
             case 'idle': fullMessage = '<span class="badge bg-secondary">尚未开始</span>'; break;
-            case 'fetching_urls': fullMessage = `<span class="badge bg-info">产品 ${productId}: 获取图片URL...</span>`; break;
-            case 'converting_images': fullMessage = `<span class="badge bg-info">产品 ${productId}: 转换图片...</span>`; break;
-            case 'processing_ocr': fullMessage = `<span class="badge bg-primary">产品 ${productId}: 识别中...${message}</span>`; break;
-            case 'success_ocr': fullMessage = `<span class="badge bg-success">产品 ${productId}: 识别成功</span>`; break;
-            case 'error': fullMessage = `<span class="badge bg-danger">产品 ${productId}: 错误 - ${message}</span>`; break;
+            case 'fetching_urls': fullMessage = `<span class="badge bg-info">商品 ${productId}: 获取图片URL...</span>`; break;
+            case 'converting_images': fullMessage = `<span class="badge bg-info">商品 ${productId}: 转换图片...</span>`; break;
+            case 'processing_ocr': fullMessage = `<span class="badge bg-primary">商品 ${productId}: 识别中...${message}</span>`; break;
+            case 'success_ocr': fullMessage = `<span class="badge bg-success">商品 ${productId}: 识别成功</span>`; break;
+            case 'error': fullMessage = `<span class="badge bg-danger">商品 ${productId}: 错误 - ${message}</span>`; break;
             case 'batch_starting': fullMessage = `<span class="badge bg-primary">批量处理已启动...</span>`; break;
-            case 'batch_item_processing': fullMessage = `<span class="badge bg-info">批量处理: 产品 ${productId} (${currentBatchProductIndex + 1}/${productsData.length})</span>`; break;
+            case 'batch_item_processing': fullMessage = `<span class="badge bg-info">批量处理: 商品 ${productId} (${currentBatchProductIndex + 1}/${productsData.length})</span>`; break;
             case 'batch_complete': fullMessage = `<span class="badge bg-success">批量处理完成</span>`; break;
             default: fullMessage = `<span class="badge bg-secondary">${statusKey}</span>`;
         }
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
             itemDiv.className = 'image-result-item';
             const img = document.createElement('img');
             img.src = url;
-            img.alt = `产品 ${productId} 图片 ${index + 1}`;
+            img.alt = `商品 ${productId} 图片 ${index + 1}`;
             img.classList.add('clickable-image'); // Added class for clickability
             img.dataset.imageUrl = url;          // Store URL for preview
             img.style.cursor = 'pointer';        // Visual cue for clickability
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchAndPrepareImages(productId) {
         updateStatusIndicator('fetching_urls', productId);
-        let targetProduct = isBatchProcessingMode ? productsData.find(p => p.id === productId) : currentProduct;
+        let targetProduct = isBatchProcessingMode ? productsData.find(p => p.productId === productId) : currentProduct;
         if (!targetProduct) return null;
 
         targetProduct.image_urls = [];
@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             if (!data.success || !data.images || data.images.length === 0) {
-                throw new Error(data.message || '未找到产品图片。');
+                throw new Error(data.message || '未找到商品图片。');
             }
             targetProduct.image_urls = data.images;
             displayProductImages(targetProduct.image_urls, productId);
@@ -270,14 +270,14 @@ document.addEventListener('DOMContentLoaded', function() {
             updateStatusIndicator('error', productId, '没有可识别的图片文件。');
             updateProductRecognitionResult(productId, '<p class="text-danger">错误: 没有可识别的图片文件。</p>');
             if (isBatchProcessingMode) {
-                const product = productsData.find(p => p.id === productId);
+                const product = productsData.find(p => p.productId === productId);
                 if (product) product.status = 'error';
             }
             return;
         }
 
         updateStatusIndicator('processing_ocr', productId);
-        let targetProduct = isBatchProcessingMode ? productsData.find(p => p.id === productId) : currentProduct;
+        let targetProduct = isBatchProcessingMode ? productsData.find(p => p.productId === productId) : currentProduct;
         if (targetProduct) {
             targetProduct.status = 'processing';
             targetProduct.resultText = ''; // Clear previous results
@@ -342,12 +342,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function processSingleProduct(productId, promptValue) {
         isBatchProcessingMode = false;
-        currentProduct.id = productId;
+        currentProduct.productId = productId;
         currentProduct.status = 'pending';
         currentProduct.error = null;
         currentProduct.resultText = '';
         resultContainer.innerHTML = ''; // Clear global results for single product
         resultContainer.appendChild(createProductResultSection(productId));
+        expandAndScrollToProductPanel(productId);
         downloadResultsButton.style.display = 'none';
 
         const imageFiles = await fetchAndPrepareImages(productId);
@@ -361,33 +362,33 @@ document.addEventListener('DOMContentLoaded', function() {
     async function processBatch() {
         if (currentBatchProductIndex >= productsData.length) {
             updateStatusIndicator('batch_complete');
-            addBatchLog('所有产品处理完成。', 'success');
+            addBatchLog('所有商品处理完成。', 'success');
             downloadResultsButton.style.display = 'inline-block';
             return;
         }
 
         const product = productsData[currentBatchProductIndex];
-        expandAndScrollToProductPanel(product.id);
-        updateStatusIndicator('batch_item_processing', product.id);
-        addBatchLog(`开始处理产品: ${product.id} (${currentBatchProductIndex + 1}/${productsData.length})`, 'info');
+        expandAndScrollToProductPanel(product.productId);
+        updateStatusIndicator('batch_item_processing', product.productId);
+        addBatchLog(`开始处理商品: ${product.productId} (${currentBatchProductIndex + 1}/${productsData.length})`, 'info');
         product.status = 'pending';
         product.error = null;
         product.resultText = '';
 
-        const imageFiles = await fetchAndPrepareImages(product.id);
+        const imageFiles = await fetchAndPrepareImages(product.productId);
         if (imageFiles && imageFiles.length > 0) {
-            await triggerImageRecognition(imageFiles, promptInput.value.trim(), product.id);
+            await triggerImageRecognition(imageFiles, promptInput.value.trim(), product.productId);
         } else if (!product.error) {
-            updateStatusIndicator('error', product.id, '未能准备图片进行识别。');
-            addBatchLog(`产品 ${product.id}: 未能准备图片。`, 'warning');
+            updateStatusIndicator('error', product.productId, '未能准备图片进行识别。');
+            addBatchLog(`商品 ${product.productId}: 未能准备图片。`, 'warning');
             product.status = 'error'; // Mark as error if no files and no prior error
         }
         
         // Log completion or error for the current item
         if (product.status === 'success') {
-            addBatchLog(`产品 ${product.id} 处理成功。`, 'success');
+            addBatchLog(`商品 ${product.productId} 处理成功。`, 'success');
         } else if (product.status === 'error') {
-            addBatchLog(`产品 ${product.id} 处理失败: ${product.error || '未知错误'}`, 'danger');
+            addBatchLog(`商品 ${product.productId} 处理失败: ${product.error || '未知错误'}`, 'danger');
         }
 
         currentBatchProductIndex++;
@@ -397,10 +398,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Feature Implementations ---
     function handleReRecognize(productId) {
         console.log(`Attempting to re-recognize product: ${productId}`);
-        const product = productsData.find(p => p.id === productId);
+        const product = productsData.find(p => p.productId === productId);
 
         if (!product || !product.image_files || product.image_files.length === 0) {
-            alert('没有找到该产品的图片文件缓存，无法重新识别。请确保该产品已成功加载过一次。');
+            alert('没有找到该商品的图片文件缓存，无法重新识别。请确保该商品已成功加载过一次。');
             return;
         }
 
@@ -425,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
             product.isProcessing = true;
         }
         
-        updateStatusIndicator('processing', `正在重新识别产品 ${productId}...`);
+        updateStatusIndicator('processing', `正在重新识别商品 ${productId}...`);
         expandAndScrollToProductPanel(productId);
 
         // Reuse the existing triggerImageRecognition function
@@ -454,14 +455,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         if (!productIdsRaw) {
-            alert('请输入产品ID。'); // For now, require product ID
+            alert('请输入商品ID。'); // For now, require product ID
             return;
         }
 
         const uniqueProductIds = [...new Set(productIdsRaw.split(',').map(id => id.trim()).filter(id => id))];
 
         if (uniqueProductIds.length === 0) {
-            alert('未提供有效的产品ID。');
+            alert('未提供有效的商品ID。');
             return;
         }
 
@@ -471,17 +472,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (uniqueProductIds.length > 1) {
             isBatchProcessingMode = true;
             productsData = uniqueProductIds.map(id => ({ 
-                id: id, image_urls: [], image_files: [], resultText: '', status: 'pending', error: null 
+                productId: id, mmProductCode: '', image_urls: [], image_files: [], resultText: '', status: 'pending', error: null 
             }));
             currentBatchProductIndex = 0;
             
             const batchLogContainer = document.createElement('div');
             batchLogContainer.className = 'batch-log card card-body mb-3';
             resultContainer.appendChild(batchLogContainer);
-            addBatchLog(`启动批量处理，共 ${productsData.length} 个产品...`, 'primary');
+            addBatchLog(`启动批量处理，共 ${productsData.length} 个商品...`, 'primary');
             updateStatusIndicator('batch_starting');
 
-            productsData.forEach(p => resultContainer.appendChild(createProductResultSection(p.id)));
+            productsData.forEach(p => resultContainer.appendChild(createProductResultSection(p.productId)));
             processBatch();
         } else {
             await processSingleProduct(uniqueProductIds[0], promptValue);
@@ -494,10 +495,10 @@ document.addEventListener('DOMContentLoaded', function() {
             productsData.forEach(product => {
                 if (product.resultText) {
                     const parsedResults = parseResultText(product.resultText);
-                    const productFolder = zip.folder(product.id);
+                    const productFolder = zip.folder(product.productId);
                     const imagesFolder = productFolder.folder('images');
 
-                    let infoContent = `产品ID: ${product.id}\n\n`;
+                    let infoContent = `商品ID: ${product.productId}\n\n`;
                     infoContent += `--- 包含图片文件 (位于 'images' 文件夹下) ---\n`;
                     if (product.image_files && product.image_files.length > 0) {
                         product.image_files.forEach(file => {
@@ -518,11 +519,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (parsedResults.structuredJson) {
                         try {
                             const structuredData = JSON.parse(parsedResults.structuredJson);
-                            structuredData.mmProductCode = product.id;
+                            structuredData.productId = product.productId;
                             const updatedJson = JSON.stringify(structuredData, null, 2);
                             productFolder.file(`structured_output.json`, updatedJson);
                         } catch (e) {
-                            console.error(`Error processing structured JSON for product ${product.id}:`, e);
+                            console.error(`Error processing structured JSON for product ${product.productId}:`, e);
                             productFolder.file(`structured_output.json`, parsedResults.structuredJson); // Fallback
                         }
                     }
@@ -532,12 +533,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(function(content) {
                     saveAs(content, "批量识别结果.zip");
                 });
-        } else if (!isBatchProcessingMode && currentProduct.id && currentProduct.resultText) {
+        } else if (!isBatchProcessingMode && currentProduct.productId && currentProduct.resultText) {
             const zip = new JSZip();
             const parsedResults = parseResultText(currentProduct.resultText);
             const imagesFolder = zip.folder('images');
 
-            let infoContent = `产品ID: ${currentProduct.id}\n\n`;
+            let infoContent = `商品ID: ${currentProduct.productId}\n\n`;
             infoContent += `--- 包含图片文件 (位于 'images' 文件夹下) ---\n`;
             if (currentProduct.image_files && currentProduct.image_files.length > 0) {
                 currentProduct.image_files.forEach(file => {
@@ -558,18 +559,18 @@ document.addEventListener('DOMContentLoaded', function() {
             if (parsedResults.structuredJson) {
                 try {
                     const structuredData = JSON.parse(parsedResults.structuredJson);
-                    structuredData.mmProductCode = currentProduct.id;
+                    structuredData.productId = currentProduct.productId;
                     const updatedJson = JSON.stringify(structuredData, null, 2);
                     zip.file(`structured_output.json`, updatedJson);
                 } catch (e) {
-                    console.error(`Error processing structured JSON for product ${currentProduct.id}:`, e);
+                    console.error(`Error processing structured JSON for product ${currentProduct.productId}:`, e);
                     zip.file(`structured_output.json`, parsedResults.structuredJson); // Fallback
                 }
             }
 
             zip.generateAsync({ type: "blob" })
                 .then(function(blob) {
-                    saveAs(blob, `${currentProduct.id}_识别结果.zip`);
+                    saveAs(blob, `${currentProduct.productId}_识别结果.zip`);
                 });
         } else {
             alert('没有可下载的结果。');
