@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusIndicator = document.getElementById('status-indicator');
     const productIdInput = document.getElementById('productIdInput');
     const downloadResultsButton = document.getElementById('downloadResults');
+    const retryFailedButton = document.getElementById('retryFailedButton');
 
     // --- 样式 --- (保持不变)
     function addCustomStyles() {
@@ -121,6 +122,9 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'batch_starting': fullMessage = `<span class="badge bg-primary">批量处理已启动...</span>`; break;
             case 'batch_item_processing': fullMessage = `<span class="badge bg-info">批量处理: 商品 ${productId} (${currentBatchProductIndex + 1}/${productsData.length})</span>`; break;
             case 'batch_complete': fullMessage = `<span class="badge bg-success">批量处理完成</span>`; break;
+            case 'retry_starting': fullMessage = `<span class="badge bg-warning">开始重试失败项...</span>`; break;
+            case 'retry_item_processing': fullMessage = `<span class="badge bg-info">重试处理: 商品 ${productId} (${currentBatchProductIndex + 1}/${productsData.filter(p => p.status === 'error' || p.status === 'pending_retry').length})</span>`; break;
+            case 'retry_complete': fullMessage = `<span class="badge bg-success">重试处理完成</span>`; break;
             default: fullMessage = `<span class="badge bg-secondary">${statusKey}</span>`;
         }
         statusIndicator.innerHTML = fullMessage;
@@ -346,10 +350,11 @@ document.addEventListener('DOMContentLoaded', function() {
         currentProduct.status = 'pending';
         currentProduct.error = null;
         currentProduct.resultText = '';
-        resultContainer.innerHTML = ''; // Clear global results for single product
+        resultContainer.innerHTML = ''; // Clear previous results
         resultContainer.appendChild(createProductResultSection(productId));
         expandAndScrollToProductPanel(productId);
         downloadResultsButton.style.display = 'none';
+        retryFailedButton.style.display = 'none';
 
         const imageFiles = await fetchAndPrepareImages(productId);
         if (imageFiles && imageFiles.length > 0) {
@@ -364,6 +369,13 @@ document.addEventListener('DOMContentLoaded', function() {
             updateStatusIndicator('batch_complete');
             addBatchLog('所有商品处理完成。', 'success');
             downloadResultsButton.style.display = 'inline-block';
+            const failedProducts = productsData.filter(p => p.status === 'error');
+            if (failedProducts.length > 0) {
+                retryFailedButton.style.display = 'inline-block';
+                addBatchLog(`有 ${failedProducts.length} 个商品处理失败，可尝试重试。`, 'warning');
+            } else {
+                retryFailedButton.style.display = 'none';
+            }
             return;
         }
 
@@ -396,6 +408,77 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- Feature Implementations ---
+    async function retryFailedProducts() {
+        const failedProducts = productsData.filter(p => p.status === 'error');
+        if (failedProducts.length === 0) {
+            addBatchLog('没有需要重试的失败项。', 'info');
+            retryFailedButton.style.display = 'none';
+            return;
+        }
+
+        addBatchLog(`开始重试 ${failedProducts.length} 个失败的商品...`, 'warning');
+        updateStatusIndicator('retry_starting');
+        retryFailedButton.style.display = 'none'; // Hide while retrying
+        downloadResultsButton.style.display = 'none'; // Hide download during retry
+
+        // Create a new list for items to retry to avoid modifying productsData directly during iteration
+        const productsToRetry = failedProducts.map(p => ({ ...p, status: 'pending_retry' }));
+        
+        // Update original productsData status to 'pending_retry' for UI consistency
+        failedProducts.forEach(p => p.status = 'pending_retry');
+
+        currentBatchProductIndex = 0; // Reset for retry progress
+
+        for (const product of productsToRetry) {
+            expandAndScrollToProductPanel(product.productId);
+            updateStatusIndicator('retry_item_processing', product.productId);
+            addBatchLog(`重试处理商品: ${product.productId} (${currentBatchProductIndex + 1}/${productsToRetry.length})`, 'info');
+            
+            // Find the original product in productsData to update its state
+            const originalProduct = productsData.find(p => p.productId === product.productId);
+            if (originalProduct) {
+                originalProduct.status = 'pending_retry';
+                originalProduct.error = null;
+                originalProduct.resultText = '';
+                // Clear previous error message in UI for this product
+                updateProductRecognitionResult(product.productId, '<p class="text-muted">正在重试...</p>');
+            }
+
+            const imageFiles = await fetchAndPrepareImages(product.productId);
+            if (imageFiles && imageFiles.length > 0) {
+                await triggerImageRecognition(imageFiles, promptInput.value.trim(), product.productId);
+            } else if (originalProduct && !originalProduct.error) { // If no specific error from fetchAndPrepareImages but no files
+                updateStatusIndicator('error', product.productId, '未能准备图片进行重试。');
+                addBatchLog(`商品 ${product.productId}: 重试时未能准备图片。`, 'warning');
+                if (originalProduct) originalProduct.status = 'error';
+            }
+
+            // Update log based on the original product's status after retry attempt
+            if (originalProduct) {
+                if (originalProduct.status === 'success') {
+                    addBatchLog(`商品 ${product.productId} 重试成功。`, 'success');
+                } else if (originalProduct.status === 'error') {
+                    addBatchLog(`商品 ${product.productId} 重试失败: ${originalProduct.error || '未知错误'}`, 'danger');
+                }
+            }
+            currentBatchProductIndex++;
+            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between retries
+        }
+
+        updateStatusIndicator('retry_complete');
+        addBatchLog('所有失败项重试处理完成。', 'success');
+        downloadResultsButton.style.display = 'inline-block';
+
+        const newFailedProducts = productsData.filter(p => p.status === 'error');
+        if (newFailedProducts.length > 0) {
+            retryFailedButton.style.display = 'inline-block';
+            addBatchLog(`仍有 ${newFailedProducts.length} 个商品处理失败。`, 'warning');
+        } else {
+            retryFailedButton.style.display = 'none';
+            addBatchLog('所有商品均已成功处理。', 'info');
+        }
+    }
+
     function handleReRecognize(productId) {
         console.log(`Attempting to re-recognize product: ${productId}`);
         const product = productsData.find(p => p.productId === productId);
@@ -449,6 +532,8 @@ document.addEventListener('DOMContentLoaded', function() {
     processButton.addEventListener('click', async () => {
         const productIdsRaw = productIdInput.value.trim();
         const promptValue = promptInput.value.trim();
+        retryFailedButton.style.display = 'none'; // Hide retry button on new process start
+        downloadResultsButton.style.display = 'none'; // Hide download button on new process start
 
         if (!promptValue) {
             alert('请输入提示词。');
@@ -578,6 +663,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Delegated event listener for re-recognize and image preview
+    retryFailedButton.addEventListener('click', retryFailedProducts);
+
     resultContainer.addEventListener('click', function(event) {
         const target = event.target;
         // Check if the click is on a re-recognize button or its icon
