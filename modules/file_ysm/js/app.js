@@ -257,7 +257,7 @@ async function generateExcelFile(clinicName, data, columns, billingMonth) {
     }
     
     // 表头
-    const headerRow = worksheet.addRow(['序号', '发货日期', '病历号', '医生', '患者', '类型', '价格']);
+    const headerRow = worksheet.addRow(['序号', 'CCA时间', '病历号', '医生', '患者', '类型', '价格']);
     headerRow.font = { bold: true };
     headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
     
