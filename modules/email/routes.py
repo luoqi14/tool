@@ -267,6 +267,8 @@ def send_email():
         for attachment in attachments:
             try:
                 # 解析附件数据
+
+
                 filename = attachment['name']
                 file_data = attachment['data']
                 recipient_email = attachment.get('email')

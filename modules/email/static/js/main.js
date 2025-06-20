@@ -375,9 +375,13 @@ async function handleFormSubmit(event) {
         // 显示结果
         if (result.success) {
             showAlert(result.message, 'success');
-            showDetailedResults(result.results);
         } else {
             showAlert(result.message, 'danger');
+        }
+        
+        // 无论成功还是失败，只要有结果就显示详细表格
+        if (result.results && result.results.length > 0) {
+            showDetailedResults(result.results);
         }
     } catch (error) {
         console.error('发送邮件时出错:', error);
@@ -1319,9 +1323,13 @@ async function sendEmailFromPreview() {
         // 显示结果
         if (result.success) {
             showAlert('邮件发送成功！', 'success');
-            showDetailedResults(result.results);
         } else {
             showAlert(result.message, 'danger');
+        }
+        
+        // 无论成功还是失败，只要有结果就显示详细表格
+        if (result.results && result.results.length > 0) {
+            showDetailedResults(result.results);
         }
     } catch (error) {
         console.error('发送邮件时出错:', error);
