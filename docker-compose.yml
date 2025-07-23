@@ -12,12 +12,6 @@ services:
     restart: always
     environment:
       - TZ=Asia/Shanghai
-      - HTTP_PROXY=http://172.17.0.1:8118
-      - HTTPS_PROXY=http://172.17.0.1:8118
-      - http_proxy=http://172.17.0.1:8118
-      - https_proxy=http://172.17.0.1:8118
-      - all_proxy=http://172.17.0.1:8118
-      - NO_PROXY=localhost,127.0.0.1
     volumes:
       # 挂载日志目录，方便查看日志
       - ./logs:/app/logs

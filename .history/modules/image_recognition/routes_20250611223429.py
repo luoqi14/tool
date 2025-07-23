@@ -23,7 +23,7 @@ API_KEY = "AIzaSyCgxs1UF3qv0d2AFm9Opl1vwroYIlOzW1g"
 genai_client = Client(api_key=API_KEY)
 
 # 设置模型
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-2.5-flash-preview-05-20"
 
 @image_recognition_bp.route('/')
 def index():
